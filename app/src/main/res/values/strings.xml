@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">DACS3</string>
+    <string name="title_activity_login_ui">LoginUI</string>
+    <string name="title_activity_splash_screen">SplashScreen</string>
+    <string name="title_activity_register_sheet">RegisterSheet</string>
+    <string name="title_activity_sign_up_sheet_content">SignUpSheetContent</string>
+</resources>
