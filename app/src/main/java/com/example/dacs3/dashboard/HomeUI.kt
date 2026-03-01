@@ -21,15 +21,26 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalUriHandler // THÊM IMPORT NÀY
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-// Bảng màu đã được tinh chỉnh
+// Import cho Weather, Time và Lottie
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.airbnb.lottie.compose.*
+import com.example.dacs3.R
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.delay
+
+// Bảng màu
 val OffWhite = Color(0xFFFBFBFC)
 val MidnightBlue = Color(0xFF1A237E)
 val SilverMist = Color(0xFF8D99AE)
@@ -42,15 +53,12 @@ val SoftOrange = Color(0xFFFFF3E0)
 @Composable
 fun HomeUI() {
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    // State lưu trữ tọa độ X, Y khi kéo thả nút AI Scan
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
-    // Dùng Box bao bọc toàn bộ màn hình để nút có thể nổi lên trên và di chuyển
-    Box(modifier = Modifier.fillMaxSize()) {
-
-        // --- GIAO DIỆN CHÍNH (SCAFFOLD) ---
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
         Scaffold(
             containerColor = OffWhite,
             bottomBar = {
@@ -62,8 +70,18 @@ fun HomeUI() {
                         .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 ) {
                     val items = listOf("Home", "Closet", "Stylist", "Profile")
-                    val icons = listOf(Icons.Outlined.Home, Icons.Outlined.Checkroom, Icons.Outlined.AutoAwesome, Icons.Outlined.Person)
-                    val selectedIcons = listOf(Icons.Filled.Home, Icons.Filled.Checkroom, Icons.Filled.AutoAwesome, Icons.Filled.Person)
+                    val icons = listOf(
+                        Icons.Outlined.Home,
+                        Icons.Outlined.Checkroom,
+                        Icons.Outlined.AutoAwesome,
+                        Icons.Outlined.Person
+                    )
+                    val selectedIcons = listOf(
+                        Icons.Filled.Home,
+                        Icons.Filled.Checkroom,
+                        Icons.Filled.AutoAwesome,
+                        Icons.Filled.Person
+                    )
 
                     items.forEachIndexed { index, item ->
                         NavigationBarItem(
@@ -73,7 +91,7 @@ fun HomeUI() {
                                 Icon(
                                     imageVector = if (selectedTab == index) selectedIcons[index] else icons[index],
                                     contentDescription = item,
-                                    modifier = if (selectedTab == index) Modifier.size(28.dp) else Modifier.size(24.dp)
+                                    modifier = Modifier.size(if (selectedTab == index) 28.dp else 24.dp)
                                 )
                             },
                             label = {
@@ -95,24 +113,26 @@ fun HomeUI() {
                 }
             }
         ) { innerPadding ->
-            // --- KHU VỰC CHUYỂN ĐỔI MÀN HÌNH THEO TAB ---
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
                 when (selectedTab) {
-                    0 -> DashboardContent() // Gọi giao diện Home chính
-                    1 -> ClosetScreen()     // Gọi giao diện Tủ đồ
-                    2 -> StylistScreen()    // Gọi giao diện AI Stylist
-                    3 -> ProfileScreen()    // Gọi giao diện Profile
+                    0 -> DashboardContent()
+                    1 -> Box(Modifier.fillMaxSize()) { Text("Closet", Modifier.align(Alignment.Center)) }
+                    2 -> Box(Modifier.fillMaxSize()) { Text("Stylist", Modifier.align(Alignment.Center)) }
+                    3 -> Box(Modifier.fillMaxSize()) { Text("Profile", Modifier.align(Alignment.Center)) }
                 }
             }
         }
 
-        // --- NÚT AI SCAN (KÉO THẢ ĐƯỢC) ĐẶT NGOÀI SCAFFOLD ---
         ExtendedFloatingActionButton(
-            onClick = { /* TODO: Mở Camera */ },
+            onClick = { /* TODO: Open Camera */ },
+            containerColor = Color.Transparent,
+            contentColor = Color.White,
+            shape = CircleShape,
+            elevation = FloatingActionButtonDefaults.elevation(0.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 110.dp, end = 16.dp)
@@ -123,13 +143,10 @@ fun HomeUI() {
                         offsetX += dragAmount.x
                         offsetY += dragAmount.y
                     }
-                },
-            containerColor = Color.Transparent,
-            contentColor = Color.White,
-            shape = CircleShape,
-            elevation = FloatingActionButtonDefaults.elevation(0.dp)
+                }
         ) {
             Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .background(
                         brush = Brush.horizontalGradient(
@@ -137,25 +154,27 @@ fun HomeUI() {
                         ),
                         shape = CircleShape
                     )
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Icon(Icons.Filled.CameraAlt, contentDescription = "AI Scan")
+                Icon(
+                    imageVector = Icons.Filled.CameraAlt,
+                    contentDescription = "AI Scan"
+                )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("AI Scan", fontWeight = FontWeight.Bold)
+                Text(
+                    text = "AI Scan",
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
 }
 
-// --- TÁCH GIAO DIỆN TRANG CHỦ RA THÀNH COMPOSABLE RIÊNG ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardContent() {
     var selectedEvent by remember { mutableStateOf("Work") }
     var selectedMood by remember { mutableStateOf("Confident") }
-
-    // Trình xử lý mở link web
     val uriHandler = LocalUriHandler.current
 
     LazyColumn(
@@ -164,15 +183,16 @@ fun DashboardContent() {
             .padding(horizontal = 24.dp)
     ) {
         item {
-            // 1. HEADER (Lời chào + Thời tiết)
             Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 32.dp, bottom = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(top = 32.dp, bottom = 24.dp)
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f) // Giúp cột lời chào chiếm không gian còn lại
+                ) {
                     Text(
                         text = "Good morning,",
                         fontSize = 14.sp,
@@ -182,44 +202,40 @@ fun DashboardContent() {
                     )
                     Text(
                         text = "Alexander \uD83D\uDC4B",
-                        fontSize = 28.sp,
+                        fontSize = 24.sp,
                         color = MidnightBlue,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // Widget Thời tiết
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .background(SoftOrange, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Icon(Icons.Filled.WbSunny, contentDescription = "Sunny", tint = Color(0xFFFF9800), modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("26°C", fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
-                }
+                WeatherWidget()
             }
         }
 
-        // 2. THẺ QUẢNG CÁO (PROMO BANNER)
         item {
             Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MidnightBlue),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 28.dp)
-                    .shadow(12.dp, RoundedCornerShape(24.dp), spotColor = AccentTeal.copy(alpha = 0.5f)),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MidnightBlue) // Nền màu xanh đậm sang trọng
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = RoundedCornerShape(24.dp),
+                        spotColor = AccentTeal.copy(alpha = 0.5f)
+                    )
             ) {
                 Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(20.dp)
                 ) {
-                    // Cột thông tin quảng cáo
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
                             text = "SPONSORED",
                             fontSize = 10.sp,
@@ -242,38 +258,45 @@ fun DashboardContent() {
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
                         Button(
-                            onClick = {
-                                // Mở link mua hàng / Affiliate Link
-                                uriHandler.openUri("https://shopee.vn")
-                            },
+                            onClick = { uriHandler.openUri("https://shopee.vn") },
                             colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                             modifier = Modifier.height(36.dp)
                         ) {
-                            Text("Shop Now", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MidnightBlue)
+                            Text(
+                                text = "Shop Now",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MidnightBlue
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
-                    // Khu vực chứa ảnh Sản phẩm (Dùng Icon làm placeholder)
                     Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(80.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
+                            .background(Color.White.copy(alpha = 0.15f))
                     ) {
-                        Icon(Icons.Outlined.LocalMall, contentDescription = "Product", tint = Color.White, modifier = Modifier.size(36.dp))
+                        Icon(
+                            imageVector = Icons.Outlined.LocalMall,
+                            contentDescription = "Product",
+                            tint = Color.White,
+                            modifier = Modifier.size(36.dp)
+                        )
                     }
                 }
             }
         }
 
         item {
-            // 3. Chips chọn Ngữ cảnh
-            Column(modifier = Modifier.padding(bottom = 28.dp)) {
+            Column(
+                modifier = Modifier.padding(bottom = 28.dp)
+            ) {
                 Text(
                     text = "What's the plan today?",
                     fontSize = 15.sp,
@@ -282,14 +305,14 @@ fun DashboardContent() {
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
                 Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
                 ) {
                     FilterChip(
                         selected = true,
                         onClick = { },
                         label = { Text("Event: $selectedEvent", fontWeight = FontWeight.Medium) },
-                        leadingIcon = { Icon(Icons.Outlined.WorkOutline, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        leadingIcon = { Icon(Icons.Outlined.WorkOutline, null, Modifier.size(18.dp)) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MidnightBlue,
                             selectedLabelColor = Color.White,
@@ -302,7 +325,7 @@ fun DashboardContent() {
                         selected = true,
                         onClick = { },
                         label = { Text("Mood: $selectedMood", fontWeight = FontWeight.Medium) },
-                        leadingIcon = { Icon(Icons.Outlined.Mood, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        leadingIcon = { Icon(Icons.Outlined.Mood, null, Modifier.size(18.dp)) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = SoftTeal,
                             selectedLabelColor = MidnightBlue,
@@ -316,14 +339,17 @@ fun DashboardContent() {
         }
 
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
                 Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(32.dp)
-                        .background(SoftTeal, CircleShape),
-                    contentAlignment = Alignment.Center
+                        .background(SoftTeal, CircleShape)
                 ) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = "AI", tint = AccentTeal, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.AutoAwesome, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
@@ -336,54 +362,50 @@ fun DashboardContent() {
         }
 
         item {
-            // 4. Thẻ Gợi ý Outfit
             Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(elevation = 16.dp, shape = RoundedCornerShape(24.dp), spotColor = LightGray, ambientColor = LightGray),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                    .shadow(16.dp, RoundedCornerShape(24.dp), spotColor = LightGray)
             ) {
                 Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(24.dp)
                 ) {
                     Text(
                         text = "Perfect match for a sunny workday feeling confident.",
                         fontSize = 14.sp,
                         color = SilverMist,
-                        fontWeight = FontWeight.Normal,
-                        modifier = Modifier.padding(bottom = 20.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(bottom = 20.dp)
                     )
 
                     OutfitItemPlaceholder("White Oxford Shirt", Icons.Outlined.Checkroom, "From your closet", SoftTeal, AccentTeal)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
                     OutfitItemPlaceholder("Navy Tailored Trousers", Icons.Filled.Checkroom, "From your closet", Color(0xFFE8EAF6), MidnightBlue)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
                     OutfitItemPlaceholder("Brown Leather Loafers", Icons.Outlined.DirectionsWalk, "From your closet", SoftOrange, Color(0xFFFF9800))
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(Modifier.height(24.dp))
 
-                    // Nút Shuffle
                     Button(
                         onClick = { },
                         colors = ButtonDefaults.buttonColors(containerColor = MidnightBlue),
                         shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(vertical = 16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Shuffle Outfit", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Icon(Icons.Outlined.Refresh, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Shuffle Outfit", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        item { Spacer(modifier = Modifier.height(36.dp)) }
+        item { Spacer(Modifier.height(36.dp)) }
 
         item {
             Text(
@@ -402,116 +424,221 @@ fun DashboardContent() {
             ) {
                 val stats = listOf("Tops" to "12", "Bottoms" to "8", "Shoes" to "5", "Accs" to "10")
                 items(stats.size) { index ->
-                    StatCard(title = stats[index].first, count = stats[index].second)
+                    StatCard(stats[index].first, stats[index].second)
                 }
             }
         }
 
-        item { Spacer(modifier = Modifier.height(36.dp)) }
+        item { Spacer(Modifier.height(120.dp)) }
+    }
+}
 
-        item {
+@Composable
+fun WeatherWidget(viewModel: WeatherViewModel = viewModel()) {
+    LaunchedEffect(Unit) {
+        viewModel.fetchWeather()
+    }
+
+    val temperature by viewModel.temperature.collectAsState()
+    val condition by viewModel.condition.collectAsState()
+    val isNight by viewModel.isNight.collectAsState()
+    val cityName by viewModel.cityName.collectAsState()
+
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60000L)
+            currentTime = System.currentTimeMillis()
+        }
+    }
+
+    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    val timeStr = timeFormat.format(Date(currentTime))
+    val dateStr = dateFormat.format(Date(currentTime))
+
+    // Logic chọn file Lottie
+    val lottieResId = when {
+        condition == "Clear" && isNight -> R.raw.night
+        condition == "Clear" && !isNight -> R.raw.sunny
+        condition == "Clouds" && isNight -> R.raw.cloudy_night
+        condition == "Clouds" && !isNight -> R.raw.cloudy_day
+        (condition == "Rain" || condition == "Drizzle") && isNight -> R.raw.rainy_night
+        (condition == "Rain" || condition == "Drizzle") && !isNight -> R.raw.rainy_day
+        condition == "Thunderstorm" -> R.raw.storm
+        condition in listOf("Sand", "Dust", "Ash", "Haze", "Fog", "Mist", "Smoke", "Sand", "Squall", "Tornado") -> R.raw.sandy
+        else -> if (isNight) R.raw.night else R.raw.sunny
+    }
+
+    // Màu nền linh hoạt
+    val widgetBgColor = when {
+        condition == "Clear" && !isNight -> SoftOrange
+        isNight -> Color(0xFFE8EAF6)
+        condition in listOf("Rain", "Drizzle", "Thunderstorm") -> Color(0xFFE0F7FA)
+        else -> Color(0xFFE3F2FD)
+    }
+
+    val widgetTextColor = when {
+        condition == "Clear" && !isNight -> Color(0xFFE65100)
+        isNight -> Color(0xFF283593)
+        condition in listOf("Rain", "Drizzle", "Thunderstorm") -> Color(0xFF006064)
+        else -> Color(0xFF1565C0)
+    }
+
+    Column(
+        modifier = Modifier.wrapContentWidth() // Giới hạn Row chỉ rộng vừa đủ nội dung
+    ) {
+        Column(
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.padding(end = 8.dp)
+        ) {
             Text(
-                text = "My Profile",
-                fontSize = 20.sp,
-                color = MidnightBlue,
+                text = cityName,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 16.dp)
+                color = MidnightBlue,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(5.dp))
+            Text(
+                text = "$timeStr • $dateStr",
+                fontSize = 10.sp,
+                color = SilverMist,
+                fontWeight = FontWeight.Medium
             )
         }
 
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(24.dp), spotColor = LightGray),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .background(SoftTeal, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("A", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = AccentTeal)
-                    }
+        Spacer(modifier = Modifier.height(5.dp))
 
-                    Spacer(modifier = Modifier.width(16.dp))
+        // PHẦN CỤC THỜI TIẾT (Lồng thêm một Row nhỏ)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .shadow(
+                    elevation = 6.dp,
+                    shape = RoundedCornerShape(16.dp),
+                    spotColor = Color.Gray.copy(alpha = 0.2f)
+                )
+                .background(
+                    color = widgetBgColor,
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(lottieResId))
+            val progress by animateLottieCompositionAsState(
+                composition = composition,
+                iterations = LottieConstants.IterateForever
+            )
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "Alexander", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MidnightBlue)
-                        Text(text = "alexander@style.com", fontSize = 14.sp, color = SilverMist)
-                    }
-
-                    IconButton(
-                        onClick = { },
-                        modifier = Modifier.background(LightGray, CircleShape)
-                    ) {
-                        Icon(Icons.Filled.ChevronRight, contentDescription = "Go", tint = MidnightBlue)
-                    }
-                }
+            if (composition != null) {
+                LottieAnimation(
+                    composition = composition,
+                    progress = { progress },
+                    modifier = Modifier.size(36.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.WbSunny,
+                    contentDescription = null,
+                    tint = Color(0xFFFF9800),
+                    modifier = Modifier.size(24.dp)
+                )
             }
-        }
 
-        item { Spacer(modifier = Modifier.height(120.dp)) } // Spacer tránh bị che bởi FAB và Bottom Bar
+            Spacer(modifier = Modifier.width(4.dp))
+
+            Text(
+                text = temperature,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 14.sp,
+                color = widgetTextColor
+            )
+        }
     }
 }
 
-// Cập nhật lại OutfitItemPlaceholder có màu nền Icon tùy biến
 @Composable
-fun OutfitItemPlaceholder(name: String, icon: androidx.compose.ui.graphics.vector.ImageVector, subtext: String, iconBgColor: Color, iconColor: Color) {
+fun OutfitItemPlaceholder(
+    name: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    subtext: String,
+    iconBgColor: Color,
+    iconColor: Color
+) {
     Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White, RoundedCornerShape(16.dp))
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(8.dp)
     ) {
         Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
                 .size(56.dp)
-                .background(iconBgColor, RoundedCornerShape(16.dp)),
-            contentAlignment = Alignment.Center
+                .background(iconBgColor, RoundedCornerShape(16.dp))
         ) {
-            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(24.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(24.dp)
+            )
         }
-        Spacer(modifier = Modifier.width(16.dp))
+
+        Spacer(Modifier.width(16.dp))
+
         Column {
-            Text(text = name, color = MidnightBlue, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Text(text = subtext, color = SilverMist, fontWeight = FontWeight.Normal, fontSize = 12.sp)
+            Text(
+                text = name,
+                color = MidnightBlue,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp
+            )
+            Text(
+                text = subtext,
+                color = SilverMist,
+                fontSize = 12.sp
+            )
         }
     }
 }
 
-// Cập nhật lại StatCard
 @Composable
 fun StatCard(title: String, count: String) {
     Card(
-        modifier = Modifier.size(88.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp),
+        modifier = Modifier.size(88.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxSize()
         ) {
-            Text(text = count, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = AccentTeal)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = title, fontSize = 13.sp, color = MidnightBlue, fontWeight = FontWeight.Medium)
+            Text(
+                text = count,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = AccentTeal
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                color = MidnightBlue,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun PreviewHomeUI() {
+fun previewHomeUI() {
     HomeUI()
 }
