@@ -53,9 +53,8 @@ fun ProfileScreen() {
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
-                Column(
+                Row(
                     modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
                         modifier = Modifier
@@ -80,17 +79,25 @@ fun ProfileScreen() {
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Alexander", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MidnightBlue)
-                    Text("alexander@style.com", fontSize = 14.sp, color = SilverMist)
+                    Column(
+                    modifier = Modifier.padding(start = 55.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Alexander", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MidnightBlue)
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { /* TODO: Chỉnh sửa hồ sơ */ },
-                        colors = ButtonDefaults.buttonColors(containerColor = LightGray, contentColor = MidnightBlue),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Edit Profile", fontWeight = FontWeight.SemiBold)
-                    }
+                        Text("alexander@style.com", fontSize = 14.sp, color = SilverMist)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { /* TODO: Chỉnh sửa hồ sơ */ },
+                            colors = ButtonDefaults.buttonColors(containerColor = LightGray, contentColor = MidnightBlue),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Edit Profile", fontWeight = FontWeight.SemiBold)
+                        }
+                     }
+
+
+
                 }
             }
         }
@@ -208,8 +215,7 @@ fun SettingToggleRow(icon: ImageVector, title: String, isChecked: Boolean, onChe
         Switch(
             checked = isChecked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AccentTeal)
-        )
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AccentTeal, uncheckedTrackColor = Color.Gray, uncheckedThumbColor = Color.White))
     }
 }
 

@@ -8,8 +8,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material3.*
@@ -18,8 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -32,7 +40,23 @@ fun ClosetScreen() {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = listOf("All", "Tops", "Bottoms", "Outerwear", "Shoes", "Accs")
 
-    // Danh sách đồ giả lập
+    // --- STATE CHO TÌM KIẾM ---
+    var isSearching by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Tự động bật bàn phím khi nhấn Search
+    LaunchedEffect(isSearching) {
+        if (isSearching) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        } else {
+            keyboardController?.hide()
+        }
+    }
+
     val items = listOf(
         WardrobeItem(1, "White Oxford Shirt", "Zara", Color(0xFFF5F5F5)),
         WardrobeItem(2, "Navy Tailored Trousers", "Mango", MidnightBlue),
@@ -42,33 +66,111 @@ fun ClosetScreen() {
         WardrobeItem(6, "Black Turtleneck", "Uniqlo", Color(0xFF424242))
     )
 
+    val filteredItems = items.filter {
+        it.name.contains(searchQuery, ignoreCase = true) ||
+                it.brand.contains(searchQuery, ignoreCase = true)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
             .padding(horizontal = 24.dp)
     ) {
-        // --- HEADER ---
+        // --- HEADER CÓ TÍCH HỢP TÌM KIẾM ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 40.dp, bottom = 20.dp),
+                .height(90.dp)
+                .padding(top = 40.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "My Closet",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MidnightBlue
-            )
+            if (!isSearching) {
+                Text(
+                    text = "My Closet",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MidnightBlue
+                )
 
-            // Nút Tìm kiếm
-            IconButton(
-                onClick = { /* Mở tìm kiếm */ },
-                modifier = Modifier.background(Color.White, CircleShape).shadow(2.dp, CircleShape)
-            ) {
-                Icon(Icons.Filled.Search, contentDescription = "Search", tint = MidnightBlue)
+                IconButton(
+                    onClick = { isSearching = true },
+                    modifier = Modifier.background(Color.White, CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = "Search",
+                        tint = MidnightBlue,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+            } else {
+                // --- SỬ DỤNG BASIC TEXT FIELD ĐỂ FIX LỖI CHỮ BỊ CHE ---
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester),
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            color = MidnightBlue,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        cursorBrush = SolidColor(MidnightBlue),
+                        decorationBox = { innerTextField ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = null,
+                                    tint = AccentTeal,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search clothes...",
+                                            color = SilverMist,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                    innerTextField() // Nơi hiển thị văn bản nhập vào
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        if (searchQuery.isEmpty()) isSearching = false
+                                        else searchQuery = ""
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = null,
+                                        tint = SilverMist,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
             }
         }
 
@@ -97,33 +199,26 @@ fun ClosetScreen() {
                         labelColor = SilverMist
                     ),
                     shape = RoundedCornerShape(16.dp),
-                    border = null,
-
-                    // 1. THÊM DÒNG NÀY: Dùng hiệu ứng đổ bóng (elevation) chuẩn của Material 3
                     elevation = FilterChipDefaults.filterChipElevation(
                         elevation = if (isSelected) 4.dp else 1.dp
-                    ),
-
-                    // 2. SỬA DÒNG NÀY: Chỉ để lại Modifier trống, XÓA đoạn .shadow(...) cũ đi
-                    modifier = Modifier
+                    )
                 )
             }
         }
 
         // --- GRID ITEMS ---
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2), // Lưới 2 cột
+            columns = GridCells.Fixed(2),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 120.dp) // Tránh thanh BottomBar
+            contentPadding = PaddingValues(bottom = 120.dp)
         ) {
-            // Nút Thêm mới nằm ở ô đầu tiên
             item {
                 Card(
                     modifier = Modifier.height(200.dp),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = SoftTeal),
-                    onClick = { /* TODO: Mở form thêm quần áo */ }
+                    onClick = { /* TODO: Add function */ }
                 ) {
                     Column(
                         modifier = Modifier.fillMaxSize(),
@@ -136,16 +231,23 @@ fun ClosetScreen() {
                                 .background(AccentTeal, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = "Add", tint = Color.White)
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Add New", color = MidnightBlue, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "Add New",
+                            color = MidnightBlue,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }
 
-            // Các thẻ quần áo
-            items(items) { item ->
+            items(filteredItems) { item ->
                 ClosetItemCard(item)
             }
         }
@@ -162,10 +264,7 @@ fun ClosetItemCard(item: WardrobeItem) {
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            // Vùng hiển thị ảnh (Dùng icon giả lập)
+        Column(modifier = Modifier.padding(12.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -174,10 +273,13 @@ fun ClosetItemCard(item: WardrobeItem) {
                     .background(LightGray.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
             ) {
-                // TODO: Thay bằng AsyncImage để load ảnh thật
-                Icon(Icons.Outlined.Checkroom, contentDescription = null, modifier = Modifier.size(40.dp), tint = SilverMist)
+                Icon(
+                    imageVector = Icons.Outlined.Checkroom,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = SilverMist
+                )
 
-                // Chấm màu của quần áo
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -190,8 +292,12 @@ fun ClosetItemCard(item: WardrobeItem) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Thông tin
-            Text(text = item.brand, fontSize = 11.sp, color = SilverMist, fontWeight = FontWeight.Medium)
+            Text(
+                text = item.brand,
+                fontSize = 11.sp,
+                color = SilverMist,
+                fontWeight = FontWeight.Medium
+            )
             Text(
                 text = item.name,
                 fontSize = 14.sp,
