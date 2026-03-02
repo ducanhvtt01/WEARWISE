@@ -119,10 +119,10 @@ fun HomeUI() {
                     .padding(innerPadding)
             ) {
                 when (selectedTab) {
-                    0 -> DashboardContent()
-                    1 -> Box(Modifier.fillMaxSize()) { Text("Closet", Modifier.align(Alignment.Center)) }
-                    2 -> Box(Modifier.fillMaxSize()) { Text("Stylist", Modifier.align(Alignment.Center)) }
-                    3 -> Box(Modifier.fillMaxSize()) { Text("Profile", Modifier.align(Alignment.Center)) }
+                    0 -> DashboardContent() // Gọi giao diện Home chính
+                    1 -> ClosetScreen()     // Gọi giao diện Tủ đồ (đảm bảo bạn đã có file ClosetScreen.kt)
+                    2 -> StylistScreen()
+                    3 -> ProfileScreen()
                 }
             }
         }
