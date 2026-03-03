@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -21,10 +20,7 @@ import androidx.navigation.compose.rememberNavController
 // --- IMPORT CÁC MÀN HÌNH ---
 import com.example.dacs3.dashboard.HomeUI
 import com.example.dacs3.login.LoginScreen
-import com.example.dacs3.survey.Step1Screen // <-- Đã thêm Import này
-import com.example.dacs3.survey.Step2Screen
-import com.example.dacs3.survey.Step3Screen
-import com.example.dacs3.survey.SurveyViewModel
+import com.example.dacs3.survey.SurveyMasterScreen // <-- Gọi màn hình điều phối khảo sát mới
 import com.example.dacs3.ui.theme.DACS3Theme
 
 class MainActivity : ComponentActivity() {
@@ -47,78 +43,49 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
-    val surveyViewModel: SurveyViewModel = viewModel()
 
     NavHost(
         navController = navController,
         startDestination = "login",
-        // --- HIỆU ỨNG SLIDE POWERPOINT ---
+        // Hiệu ứng chuyển cảnh giữa các màn hình chính (Login -> Survey -> Home)
         enterTransition = {
-            slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(500)
-            ) + fadeIn(animationSpec = tween(500))
+            slideInHorizontally(animationSpec = tween(500)) { it } + fadeIn(tween(500))
         },
         exitTransition = {
-            slideOutHorizontally(
-                targetOffsetX = { fullWidth -> -fullWidth },
-                animationSpec = tween(500)
-            ) + fadeOut(animationSpec = tween(500))
+            slideOutHorizontally(animationSpec = tween(500)) { -it } + fadeOut(tween(500))
         },
         popEnterTransition = {
-            slideInHorizontally(
-                initialOffsetX = { fullWidth -> -fullWidth },
-                animationSpec = tween(500)
-            ) + fadeIn(animationSpec = tween(500))
+            slideInHorizontally(animationSpec = tween(500)) { -it } + fadeIn(tween(500))
         },
         popExitTransition = {
-            slideOutHorizontally(
-                targetOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(500)
-            ) + fadeOut(animationSpec = tween(500))
+            slideOutHorizontally(animationSpec = tween(500)) { it } + fadeOut(tween(500))
         }
     ) {
-        // --- ĐĂNG NHẬP ---
+        // --- 1. MÀN HÌNH ĐĂNG NHẬP ---
         composable("login") {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate("survey_step_1") {
+                    // Chuyển thẳng vào luồng khảo sát
+                    navController.navigate("survey") {
                         popUpTo("login") { inclusive = true }
                     }
                 }
             )
         }
 
-        // --- KHẢO SÁT ---
-        composable("survey_step_1") {
-            Step1Screen(
-                viewModel = surveyViewModel,
-                onNext = { navController.navigate("survey_step_2") }
-            )
-        }
-
-        composable("survey_step_2") {
-            Step2Screen(
-                viewModel = surveyViewModel,
-                onBack = { navController.popBackStack() },
-                onNext = { navController.navigate("survey_step_3") }
-            )
-        }
-
-        composable("survey_step_3") {
-            Step3Screen(
-                viewModel = surveyViewModel,
-                onBack = { navController.popBackStack() },
-                onComplete = {
-                    // Xử lý gửi dữ liệu rồi về Home
+        // --- 2. LUỒNG KHẢO SÁT (MASTER) ---
+        // Tại đây, SurveyMasterScreen sẽ tự quản lý việc trượt giữa 3 bước bên trong nó
+        composable("survey") {
+            SurveyMasterScreen(
+                onFinish = {
                     navController.navigate("home") {
-                        popUpTo("survey_step_1") { inclusive = true }
+                        popUpTo("survey") { inclusive = true }
                     }
                 }
             )
         }
 
-        // --- TRANG CHỦ ---
+        // --- 3. TRANG CHỦ ---
         composable("home") {
             HomeUI()
         }

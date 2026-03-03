@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// BẢNG MÀU
 val OffWhite = Color(0xFFFBFBFC)
 val MidnightBlue = Color(0xFF1A237E)
 val SilverMist = Color(0xFF8D99AE)
@@ -67,6 +66,26 @@ fun MultiChoiceChip(text: String, selected: Boolean, onClick: () -> Unit) {
                 Spacer(modifier = Modifier.width(4.dp))
             }
             Text(text = text, color = if (selected) MidnightBlue else SilverMist, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+fun DropdownSizeSelector(selected: String, options: List<String>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MidnightBlue)
+        ) {
+            Text(text = if (selected.isEmpty()) "Select" else selected)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(Color.White)) {
+            options.forEach { option ->
+                DropdownMenuItem(text = { Text(text = option) }, onClick = { onSelect(option); expanded = false })
+            }
         }
     }
 }

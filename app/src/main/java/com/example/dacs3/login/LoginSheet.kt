@@ -1,7 +1,9 @@
 package com.example.dacs3.login.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -13,12 +15,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dacs3.R
 import com.example.dacs3.login.ui.theme.* // Import các màu chủ đạo
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -169,27 +175,52 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
-            SocialButton(text = "G")
-            Spacer(modifier = Modifier.width(24.dp))
-            SocialButton(text = "A")
-            Spacer(modifier = Modifier.width(24.dp))
-            SocialButton(text = "F")
-        }
+            SocialButton(
+                icon = painterResource(id = R.drawable.ic_google),
+                tint = Color.Unspecified
+            ) { /* TODO: Login Google */ }
 
+            Spacer(modifier = Modifier.width(20.dp))
+
+            // Nút Facebook (Đổ màu xanh đặc trưng)
+            SocialButton(
+                icon = painterResource(id = R.drawable.ic_facebook)
+            ) { /* TODO: Login Facebook */ }
+
+            Spacer(modifier = Modifier.width(20.dp))
+
+            // Nút GitHub (Đổ màu đen)
+            SocialButton(
+                icon = painterResource(id = R.drawable.ic_github),
+                tint = MidnightBlue
+            ) { /* TODO: Login GitHub */ }
+        }
         Spacer(modifier = Modifier.height(20.dp))
     }
 }
 
 @Composable
-fun SocialButton(text: String) {
+fun SocialButton(
+    icon: Painter,
+    tint: Color = Color.Unspecified,
+    onClick: () -> Unit
+) {
     OutlinedCard(
-        shape = RoundedCornerShape(2.dp), // Đồng bộ góc vuông
-        modifier = Modifier.size(50.dp),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, SilverMist.copy(alpha = 0.5f)),
-        colors = CardDefaults.outlinedCardColors(containerColor = Color.Transparent)
+        shape = CircleShape, // CHUYỂN THÀNH HÌNH TRÒN
+        modifier = Modifier
+            .size(54.dp)
+            .clip(CircleShape)
+            .clickable { onClick() },
+        border = androidx.compose.foundation.BorderStroke(1.dp, SilverMist.copy(alpha = 0.2f)),
+        colors = CardDefaults.outlinedCardColors(containerColor = Color.White)
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text, fontWeight = FontWeight.ExtraLight, color = MidnightBlue)
+            Icon(
+                painter = icon,
+                contentDescription = null,
+                modifier = Modifier.size(30.dp),
+                tint = tint
+            )
         }
     }
 }
