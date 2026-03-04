@@ -11,8 +11,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DryCleaning
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -87,12 +90,20 @@ fun ClosetScreen() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!isSearching) {
-                Text(
-                    text = "My Closet",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MidnightBlue
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.DryCleaning,
+                    contentDescription = "",
+                    tint = MidnightBlue,
+                    modifier = Modifier.size(35.dp))
+                    
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(text = "Closet",
+                        fontSize = 35.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MidnightBlue,
+                        letterSpacing = (-0.5).sp)
+                 }
 
                 IconButton(
                     onClick = { isSearching = true },
@@ -105,7 +116,8 @@ fun ClosetScreen() {
                         modifier = Modifier.size(30.dp)
                     )
                 }
-            } else {
+            }
+            else {
                 // --- SỬ DỤNG BASIC TEXT FIELD ĐỂ FIX LỖI CHỮ BỊ CHE ---
                 Box(
                     modifier = Modifier
@@ -307,4 +319,10 @@ fun ClosetItemCard(item: WardrobeItem) {
             )
         }
     }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewClosetScreen() {
+    ClosetScreen()
 }

@@ -35,13 +35,28 @@ fun ProfileScreen() {
     ) {
         // --- HEADER ---
         item {
-            Text(
-                text = "Profile",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = MidnightBlue,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 40.dp, bottom = 24.dp)
-            )
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = null,
+                    tint = MidnightBlue,
+                    modifier = Modifier.size(35.dp)
+
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Text(
+                    text = "Profile",
+                    fontSize = 35.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MidnightBlue,
+                    letterSpacing = (-0.5).sp
+                )
+            }
         }
 
         // --- USER INFO CARD ---
