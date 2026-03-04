@@ -162,6 +162,8 @@ fun WelcomeScreen(exoPlayer: ExoPlayer?, onLoginSuccess: () -> Unit) {
                 )
             }
 
+            val scope = rememberCoroutineScope()
+
             // Phần NÚT BẤM
             Column(
                 modifier = Modifier.padding(bottom = 50.dp),

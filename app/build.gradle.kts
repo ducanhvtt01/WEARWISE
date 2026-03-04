@@ -1,13 +1,12 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21"
 }
 
 android {
     namespace = "com.example.dacs3"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.dacs3"
@@ -57,8 +56,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
     implementation("com.airbnb.android:lottie-compose:6.4.0")
-    implementation("androidx.media3:media3-exoplayer:1.2.1")
-    implementation("androidx.media3:media3-ui:1.2.1")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("io.coil-kt:coil-compose:2.6.0")
@@ -66,4 +63,15 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     // Thư viện ViewModel cho Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
+    // Supabase
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.5.0") // Thao tác Database
+    implementation("io.github.jan-tennert.supabase:gotrue-kt:2.5.0")    // Đăng nhập (Auth)
+    implementation("io.github.jan-tennert.supabase:storage-kt:2.5.0")   // Lưu ảnh quần áo
+
+    // Serialization (Để chuyển đổi JSON sang Class)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+    // Thư viện hỗ trợ mạng (Ktor)
+    implementation("io.ktor:ktor-client-android:2.3.10")
 }
