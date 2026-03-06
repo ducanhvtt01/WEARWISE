@@ -10,10 +10,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -25,7 +28,9 @@ import androidx.navigation.compose.rememberNavController
 import com.example.dacs3.dashboard.HomeUI
 import com.example.dacs3.login.LoginScreen
 import com.example.dacs3.survey.SurveyMasterScreen
+import com.example.dacs3.ui.theme.ThemeManager
 import com.example.dacs3.ui.theme.WearwiseTheme // Hãy đảm bảo bạn đã import đúng đường dẫn Theme của bạn
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,14 +42,24 @@ class MainActivity : ComponentActivity() {
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
 
         setContent {
-            // TẠO STATE THEME TOÀN CỤC, MẶC ĐỊNH LÀ FALSE (SÁNG)
-            var isDarkMode by remember { mutableStateOf(false) }
+            // 1. Lấy context và khởi tạo ThemeManager
+            val context = LocalContext.current
+            val themeManager = remember { ThemeManager(context) }
+            val scope = rememberCoroutineScope()
 
-            // Ép Theme chạy theo biến isDarkMode của chúng ta
+            // 2. Đọc trạng thái lưu trong DataStore (app khởi động sẽ tự lấy giá trị cũ)
+            val isDarkMode by themeManager.themeFlow.collectAsState(initial = false)
+
+            // 3. Áp dụng Theme
             WearwiseTheme(darkTheme = isDarkMode) {
                 AppNavigation(
                     isDarkMode = isDarkMode,
-                    onThemeChange = { isDarkMode = it }
+                    onThemeChange = { isDark ->
+                        // Khi gạt nút trong Profile, lưu ngay trạng thái vào DataStore
+                        scope.launch {
+                            themeManager.saveTheme(isDark)
+                        }
+                    }
                 )
             }
         }

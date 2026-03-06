@@ -153,9 +153,15 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                 }
                 .padding(horizontal = 20.dp, vertical = 16.dp) // Căn chỉnh lề trong
         ) {
-            Icon(Icons.Filled.CameraAlt, "AI Scan", tint = Color.White)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("AI Scan", fontWeight = FontWeight.Bold, color = Color.White)
+            if (isDarkMode == false) {
+                Icon(Icons.Filled.CameraAlt, "AI Scan", tint = Color.White)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("AI Scan", fontWeight = FontWeight.Bold, color = Color.White)
+            } else {
+                Icon(Icons.Filled.CameraAlt, "AI Scan", tint = Color.DarkGray)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("AI Scan", fontWeight = FontWeight.Bold, color = Color.DarkGray)
+            }
         }
     }
 }

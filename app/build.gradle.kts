@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.animation)
+    implementation(libs.androidx.datastore.core)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -78,4 +79,7 @@ dependencies {
 
     // Thư viện hỗ trợ định vị vị trí người dùng
     implementation("com.google.android.gms:play-services-location:21.1.0")
+
+    // Thư viện lưu trạng thái giao diện của ứng dụng
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 }
