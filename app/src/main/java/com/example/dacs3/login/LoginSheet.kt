@@ -1,5 +1,6 @@
 package com.example.dacs3.login.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -25,7 +27,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dacs3.R
+import com.example.dacs3.login.be.LoginResult
+import com.example.dacs3.login.be.isUserLoggedIn
+import com.example.dacs3.login.be.logincheck
 import com.example.dacs3.login.ui.theme.* // Import các màu chủ đạo
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,10 +137,37 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
         )
 
         Spacer(modifier = Modifier.height(40.dp))
+        val scope = rememberCoroutineScope()
+        val context = LocalContext.current
 
         // --- NÚT ĐĂNG NHẬP CHÍNH ---
         Button(
-            onClick = { onLoginSuccess() },
+            onClick = {
+                if (email.isNotBlank() && password.isNotBlank()) {
+                    scope.launch {
+                        val result = logincheck(email, password)
+
+                        when (result) {
+                            LoginResult.SUCCESS -> {
+                                onLoginSuccess()
+                            }
+                            LoginResult.EMAIL_NOT_CONFIRMED -> {
+                                Toast.makeText(
+                                    context,
+                                    "Tài khoản của bạn chưa xác nhận Email. Vui lòng kiểm tra hộp thư!",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            LoginResult.INVALID_CREDENTIALS -> {
+                                Toast.makeText(context, "Email hoặc mật khẩu không chính xác!", Toast.LENGTH_SHORT).show()
+                            }
+                            LoginResult.ERROR -> {
+                                Toast.makeText(context, "Đã xảy ra lỗi kết nối. Thử lại sau!", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            },
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(6.dp), // Góc vuông vức sang trọng
             colors = ButtonDefaults.buttonColors(

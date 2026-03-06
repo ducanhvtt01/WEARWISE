@@ -32,6 +32,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.example.dacs3.R
+import com.example.dacs3.login.be.isUserLoggedIn
 import com.example.dacs3.login.ui.LoginSheet
 import com.example.dacs3.login.ui.RegisterSheet
 import com.example.dacs3.login.ui.theme.*
@@ -42,6 +43,14 @@ enum class AuthSheetType {LOGIN, REGISTER}
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) { // Nhận callback từ MainActivity
     val context = LocalContext.current
+
+    // --- TỰ ĐỘNG CHECK KHI VÀO APP ---
+    LaunchedEffect(Unit) {
+        if (isUserLoggedIn()) {
+            onLoginSuccess() // Chuyển thẳng vào Home
+        }
+    }
+
     var showIntro by remember { mutableStateOf(true) }
 
     // Quản lý ExoPlayer trong Compose
@@ -238,7 +247,7 @@ fun WelcomeScreen(exoPlayer: ExoPlayer?, onLoginSuccess: () -> Unit) {
                             )
                             AuthSheetType.REGISTER -> RegisterSheet(
                                 onBackToLogin = { currentSheet = AuthSheetType.LOGIN },
-                                onRegisterSuccess = onLoginSuccess // TRUYỀN CALLBACK VÀO ĐÂY
+                                onRegisterSuccess = { currentSheet = AuthSheetType.LOGIN } // TRUYỀN CALLBACK VÀO ĐÂY
                             )
                         }
                     }

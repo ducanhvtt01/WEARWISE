@@ -168,6 +168,7 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                         try {
                             onRegister(email, password)
                             Toast.makeText(context, "Vui lòng kiểm tra email xác nhận!", Toast.LENGTH_LONG).show()
+                            onRegisterSuccess()
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
