@@ -17,35 +17,63 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val OffWhite = Color(0xFFFBFBFC)
-val MidnightBlue = Color(0xFF1A237E)
-val SilverMist = Color(0xFF8D99AE)
-val AccentTeal = Color(0xFF00BFA5)
-val SoftTeal = Color(0xFFE0F2F1)
-
 @Composable
 fun SurveyTitle(title: String, subtitle: String) {
-    Text(text = title, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = MidnightBlue, modifier = Modifier.padding(bottom = 8.dp))
-    Text(text = subtitle, fontSize = 14.sp, color = SilverMist, modifier = Modifier.padding(bottom = 32.dp))
+    Text(
+        text = title,
+        fontSize = 28.sp,
+        fontWeight = FontWeight.ExtraBold,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+    Text(
+        text = subtitle,
+        fontSize = 14.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = 32.dp)
+    )
 }
 
 @Composable
 fun SectionLabel(text: String) {
-    Text(text = text, fontSize = 11.sp, fontWeight = FontWeight.Black, color = SilverMist, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 12.dp))
+    Text(
+        text = text,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Black,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(bottom = 12.dp)
+    )
 }
 
 @Composable
-fun SingleChoiceChip(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun SingleChoiceChip(
+    text: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) MidnightBlue else Color.White)
-            .border(1.dp, if (selected) Color.Transparent else SilverMist.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+            .border(
+                1.dp,
+                if (selected) Color.Transparent else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = 0.3f
+                ),
+                RoundedCornerShape(12.dp)
+            )
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = text, color = if (selected) Color.White else MidnightBlue, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
+        Text(
+            text = text,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 14.sp
+        )
     }
 }
 
@@ -54,18 +82,34 @@ fun MultiChoiceChip(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) SoftTeal else Color.White)
-            .border(1.dp, if (selected) AccentTeal else SilverMist.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
+            .border(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = 0.3f
+                ),
+                RoundedCornerShape(20.dp)
+            )
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (selected) {
-                Icon(Icons.Filled.Check, null, tint = AccentTeal, modifier = Modifier.size(16.dp))
+                Icon(
+                    Icons.Filled.Check,
+                    null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.size(16.dp)
+                )
                 Spacer(modifier = Modifier.width(4.dp))
             }
-            Text(text = text, color = if (selected) MidnightBlue else SilverMist, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+            Text(
+                text = text,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp
+            )
         }
     }
 }
@@ -78,13 +122,20 @@ fun DropdownSizeSelector(selected: String, options: List<String>, onSelect: (Str
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MidnightBlue)
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
         ) {
             Text(text = if (selected.isEmpty()) "Select" else selected)
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(Color.White)) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+        ) {
             options.forEach { option ->
-                DropdownMenuItem(text = { Text(text = option) }, onClick = { onSelect(option); expanded = false })
+                DropdownMenuItem(
+                    text = { Text(text = option, color = MaterialTheme.colorScheme.primary) },
+                    onClick = { onSelect(option); expanded = false }
+                )
             }
         }
     }

@@ -75,4 +75,7 @@ dependencies {
 
     // Thư viện hỗ trợ mạng (Ktor)
     implementation("io.ktor:ktor-client-android:2.3.10")
+
+    // Thư viện hỗ trợ định vị vị trí người dùng
+    implementation("com.google.android.gms:play-services-location:21.1.0")
 }

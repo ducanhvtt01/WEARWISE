@@ -1,12 +1,16 @@
 package com.example.dacs3.dashboard
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,38 +24,31 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.roundToInt
-
-// Import cho Weather, Time và Lottie
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airbnb.lottie.compose.*
 import com.example.dacs3.R
+import com.example.dacs3.login.ui.theme.MidnightBlue
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
-
-// Bảng màu
-val OffWhite = Color(0xFFFBFBFC)
-val MidnightBlue = Color(0xFF1A237E)
-val SilverMist = Color(0xFF8D99AE)
-val LightGray = Color(0xFFF0F2F5)
-val AccentTeal = Color(0xFF00BFA5)
-val SoftTeal = Color(0xFFE0F2F1)
-val SoftOrange = Color(0xFFFFF3E0)
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeUI() {
+fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -60,10 +57,10 @@ fun HomeUI() {
         modifier = Modifier.fillMaxSize()
     ) {
         Scaffold(
-            containerColor = OffWhite,
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 NavigationBar(
-                    containerColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 8.dp,
                     modifier = Modifier
                         .height(84.dp)
@@ -102,11 +99,11 @@ fun HomeUI() {
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MidnightBlue,
-                                unselectedIconColor = SilverMist,
-                                selectedTextColor = MidnightBlue,
-                                unselectedTextColor = SilverMist,
-                                indicatorColor = SoftTeal
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer
                             )
                         )
                     }
@@ -119,24 +116,34 @@ fun HomeUI() {
                     .padding(innerPadding)
             ) {
                 when (selectedTab) {
-                    0 -> DashboardContent() // Gọi giao diện Home chính
-                    1 -> ClosetScreen()     // Gọi giao diện Tủ đồ (đảm bảo bạn đã có file ClosetScreen.kt)
+                    0 -> DashboardContent()
+                    1 -> ClosetScreen()
                     2 -> StylistScreen()
-                    3 -> ProfileScreen()
+                    // Truyền tiếp vào ProfileScreen
+                    3 -> ProfileScreen(isDarkMode = isDarkMode, onThemeChange = onThemeChange)
                 }
             }
         }
 
-        ExtendedFloatingActionButton(
-            onClick = { /* TODO: Open Camera */ },
-            containerColor = Color.Transparent,
-            contentColor = Color.White,
-            shape = CircleShape,
-            elevation = FloatingActionButtonDefaults.elevation(0.dp),
+        // --- NÚT FAB MÁY ẢNH AI (Tự custom để xóa viền đen) ---
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 110.dp, end = 16.dp)
                 .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+                .shadow(8.dp, CircleShape) // Tạo bóng đổ cho nút nổi lên
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.secondary,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    ),
+                    shape = CircleShape
+                )
+                .clip(CircleShape) // Bo tròn hiệu ứng bấm (ripple)
+                .clickable { /* TODO: Mở Camera Scan đồ */ }
                 .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
@@ -144,28 +151,11 @@ fun HomeUI() {
                         offsetY += dragAmount.y
                     }
                 }
+                .padding(horizontal = 20.dp, vertical = 16.dp) // Căn chỉnh lề trong
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(MidnightBlue, Color(0xFF3949AB))
-                        ),
-                        shape = CircleShape
-                    )
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.CameraAlt,
-                    contentDescription = "AI Scan"
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "AI Scan",
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Icon(Icons.Filled.CameraAlt, "AI Scan", tint = Color.White)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("AI Scan", fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
@@ -173,15 +163,179 @@ fun HomeUI() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardContent() {
-    var selectedEvent by remember { mutableStateOf("Work") }
+    var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
+
+    var showMoodSheet by remember { mutableStateOf(false) }
+    var showEventSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var isLocationDenied by remember { mutableStateOf(false) }
+
+    val haptic = LocalHapticFeedback.current
     val uriHandler = LocalUriHandler.current
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp)
-    ) {
+    val eventCategories = mapOf(
+        "Academic & Work" to listOf("University", "Presentation", "Library", "Internship"),
+        "Social & Dating" to listOf("Coffee Date", "Dinner Date", "Party", "First Date"),
+        "Active & Trip" to listOf("Gym Session", "Weekend Trip", "Hiking", "Beach Day")
+    )
+
+    val moodCategories = mapOf(
+        "Energetic" to listOf("Confident", "Productive", "Bold", "Creative"),
+        "Relaxed" to listOf("Chill", "Cozy", "Peaceful", "Effortless"),
+        "Emotional" to listOf("Elegant", "Romantic", "Nostalgic", "Edgy")
+    )
+
+    if (showEventSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showEventSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                item {
+                    Text(
+                        "Select your occasion",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+                eventCategories.forEach { (category, events) ->
+                    item {
+                        Text(
+                            category.uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    item {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(bottom = 24.dp)
+                        ) {
+                            events.chunked(2).forEach { rowEvents ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowEvents.forEach { event ->
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (selectedEvent == event) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                                .clickable {
+                                                    selectedEvent = event
+                                                    showEventSheet = false
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                event,
+                                                color = if (selectedEvent == event) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                                fontWeight = if (selectedEvent == event) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(40.dp)) }
+            }
+        }
+    }
+
+    if (showMoodSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showMoodSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                item {
+                    Text(
+                        "Select your feeling!",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                moodCategories.forEach { (category, moods) ->
+                    item {
+                        Text(
+                            category.uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    item {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(bottom = 24.dp)
+                        ) {
+                            moods.chunked(2).forEach { rowMoods ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowMoods.forEach { mood ->
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (selectedMood == mood) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                                .clickable {
+                                                    selectedMood = mood
+                                                    showMoodSheet = false
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                mood,
+                                                color = if (selectedMood == mood) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                                fontWeight = if (selectedMood == mood) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(40.dp)) }
+            }
+        }
+    }
+
+    LazyColumn(modifier = Modifier
+        .fillMaxSize()
+        .padding(horizontal = 24.dp)) {
         item {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -190,41 +344,39 @@ fun DashboardContent() {
                     .fillMaxWidth()
                     .padding(top = 32.dp, bottom = 24.dp)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f) // Giúp cột lời chào chiếm không gian còn lại
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Good morning,",
+                        "Good morning,",
                         fontSize = 14.sp,
-                        color = SilverMist,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.5.sp
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(5.dp))
                     Text(
-                        text = "Alexander \uD83D\uDC4B",
+                        "Đức Anh \uD83D\uDC4B",
                         fontSize = 24.sp,
-                        color = MidnightBlue,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                WeatherWidget()
+                WeatherWidget(
+                    isLocationDenied = isLocationDenied,
+                    onDeniedChange = { isLocationDenied = it })
             }
         }
 
         item {
             Card(
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MidnightBlue),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 28.dp)
                     .shadow(
-                        elevation = 12.dp,
-                        shape = RoundedCornerShape(24.dp),
-                        spotColor = AccentTeal.copy(alpha = 0.5f)
+                        12.dp,
+                        RoundedCornerShape(24.dp),
+                        spotColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
                     )
             ) {
                 Row(
@@ -233,59 +385,55 @@ fun DashboardContent() {
                         .fillMaxWidth()
                         .padding(20.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "SPONSORED",
+                            "SPONSORED",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = AccentTeal,
+                            color = MaterialTheme.colorScheme.secondary,
                             letterSpacing = 1.5.sp,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         Text(
-                            text = "Autumn Collection '24",
+                            "Autumn Collection '24",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
                         Text(
-                            text = "Get 20% off exclusively via WEARWISE.",
+                            "Get 20% off exclusively via WEARWISE.",
                             fontSize = 12.sp,
-                            color = SilverMist,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
                         Button(
                             onClick = { uriHandler.openUri("https://shopee.vn") },
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentTeal),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                             modifier = Modifier.height(36.dp)
                         ) {
                             Text(
-                                text = "Shop Now",
+                                "Shop Now",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MidnightBlue
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.width(16.dp))
-
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(80.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.15f))
+                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.LocalMall,
-                            contentDescription = "Product",
-                            tint = Color.White,
+                            Icons.Outlined.LocalMall,
+                            "Product",
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -294,80 +442,172 @@ fun DashboardContent() {
         }
 
         item {
-            Column(
-                modifier = Modifier.padding(bottom = 28.dp)
-            ) {
+            Column(modifier = Modifier.padding(bottom = 28.dp)) {
                 Text(
-                    text = "What's the plan today?",
+                    "What's the plan today?",
                     fontSize = 15.sp,
-                    color = MidnightBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                ) {
-                    FilterChip(
-                        selected = true,
-                        onClick = { },
-                        label = { Text("Event: $selectedEvent", fontWeight = FontWeight.Medium) },
-                        leadingIcon = { Icon(Icons.Outlined.WorkOutline, null, Modifier.size(18.dp)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MidnightBlue,
-                            selectedLabelColor = Color.White,
-                            selectedLeadingIconColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        border = null
+                FilterChip(
+                    selected = true,
+                    onClick = { showEventSheet = true },
+                    label = { Text("Event: $selectedEvent", fontWeight = FontWeight.Medium) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.Event,
+                            null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        Icon(
+                            Icons.Filled.KeyboardArrowDown,
+                            null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    shape = RoundedCornerShape(12.dp), border = null
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Column(modifier = Modifier.padding(bottom = 5.dp)) {
+                    Text(
+                        "How do you feel today?",
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
                     FilterChip(
                         selected = true,
-                        onClick = { },
+                        onClick = { showMoodSheet = true },
                         label = { Text("Mood: $selectedMood", fontWeight = FontWeight.Medium) },
-                        leadingIcon = { Icon(Icons.Outlined.Mood, null, Modifier.size(18.dp)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Outlined.Mood,
+                                null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Filled.KeyboardArrowDown,
+                                null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = SoftTeal,
-                            selectedLabelColor = MidnightBlue,
-                            selectedLeadingIconColor = AccentTeal
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                            selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimary
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        border = null
+                        shape = RoundedCornerShape(12.dp), border = null
                     )
                 }
             }
         }
 
         item {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 16.dp)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(SoftTeal, CircleShape)
-                ) {
-                    Icon(Icons.Filled.AutoAwesome, null, tint = AccentTeal, modifier = Modifier.size(18.dp))
+            if (isLocationDenied) {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.secondaryContainer,
+                                    CircleShape
+                                )
+                        ) {
+                            Icon(
+                                Icons.Filled.AutoAwesome,
+                                null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            "AI Stylist Suggestion",
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(5.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Warning,
+                            null,
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            "Allow location for the best AI outfit tips!",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "AI Stylist Suggestion",
-                    fontSize = 20.sp,
-                    color = MidnightBlue,
-                    fontWeight = FontWeight.Bold
-                )
+            } else {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "AI Stylist Suggestion",
+                        fontSize = 20.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 
         item {
             Card(
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(16.dp, RoundedCornerShape(24.dp), spotColor = LightGray)
+                    .shadow(
+                        16.dp,
+                        RoundedCornerShape(24.dp),
+                        spotColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -376,42 +616,67 @@ fun DashboardContent() {
                         .padding(24.dp)
                 ) {
                     Text(
-                        text = "Perfect match for a sunny workday feeling confident.",
+                        "Perfect match for a $selectedMood $selectedEvent feeling.",
                         fontSize = 14.sp,
-                        color = SilverMist,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(bottom = 20.dp)
                     )
 
-                    OutfitItemPlaceholder("White Oxford Shirt", Icons.Outlined.Checkroom, "From your closet", SoftTeal, AccentTeal)
-                    Spacer(Modifier.height(12.dp))
-                    OutfitItemPlaceholder("Navy Tailored Trousers", Icons.Filled.Checkroom, "From your closet", Color(0xFFE8EAF6), MidnightBlue)
-                    Spacer(Modifier.height(12.dp))
-                    OutfitItemPlaceholder("Brown Leather Loafers", Icons.Outlined.DirectionsWalk, "From your closet", SoftOrange, Color(0xFFFF9800))
-
-                    Spacer(Modifier.height(24.dp))
+                    OutfitItemPlaceholder(
+                        "White Oxford Shirt",
+                        Icons.Outlined.Checkroom,
+                        "From your closet",
+                        MaterialTheme.colorScheme.secondaryContainer,
+                        MaterialTheme.colorScheme.secondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutfitItemPlaceholder(
+                        "Navy Tailored Trousers",
+                        Icons.Filled.Checkroom,
+                        "From your closet",
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutfitItemPlaceholder(
+                        "Brown Leather Loafers",
+                        Icons.Outlined.DirectionsWalk,
+                        "From your closet",
+                        MaterialTheme.colorScheme.tertiaryContainer,
+                        Color(0xFFFF9800)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
-                        onClick = { },
-                        colors = ButtonDefaults.buttonColors(containerColor = MidnightBlue),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Outlined.Refresh, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Shuffle Outfit", color = Color.White, fontWeight = FontWeight.Bold)
+                        Icon(
+                            Icons.Outlined.Refresh,
+                            null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Shuffle Outfit",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
 
-        item { Spacer(Modifier.height(36.dp)) }
+        item { Spacer(modifier = Modifier.height(36.dp)) }
 
         item {
             Text(
-                text = "Virtual Closet Stats",
+                "Virtual Closet Stats",
                 fontSize = 20.sp,
-                color = MidnightBlue,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
@@ -429,14 +694,75 @@ fun DashboardContent() {
             }
         }
 
-        item { Spacer(Modifier.height(120.dp)) }
+        item { Spacer(modifier = Modifier.height(120.dp)) }
     }
 }
 
 @Composable
-fun WeatherWidget(viewModel: WeatherViewModel = viewModel()) {
+fun WeatherWidget(
+    viewModel: WeatherViewModel = viewModel(),
+    isLocationDenied: Boolean,
+    onDeniedChange: (Boolean) -> Unit
+) {
+    val context = LocalContext.current
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val isGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+
+        if (isGranted) {
+            onDeniedChange(false)
+            LocationHelper.getCurrentLocation(
+                context = context,
+                onLocationFetched = { lat, lon ->
+                    viewModel.fetchWeatherByLocation(
+                        context,
+                        lat,
+                        lon
+                    )
+                },
+                onFailed = { viewModel.fetchWeather() }
+            )
+        } else {
+            onDeniedChange(true)
+            viewModel.fetchWeather()
+        }
+    }
+
     LaunchedEffect(Unit) {
-        viewModel.fetchWeather()
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasFine = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasCoarse || hasFine) {
+            onDeniedChange(false)
+            LocationHelper.getCurrentLocation(
+                context = context,
+                onLocationFetched = { lat, lon ->
+                    viewModel.fetchWeatherByLocation(
+                        context,
+                        lat,
+                        lon
+                    )
+                },
+                onFailed = { viewModel.fetchWeather() }
+            )
+        } else {
+            onDeniedChange(true)
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            )
+        }
     }
 
     val temperature by viewModel.temperature.collectAsState()
@@ -458,7 +784,6 @@ fun WeatherWidget(viewModel: WeatherViewModel = viewModel()) {
     val timeStr = timeFormat.format(Date(currentTime))
     val dateStr = dateFormat.format(Date(currentTime))
 
-    // Logic chọn file Lottie
     val lottieResId = when {
         condition == "Clear" && isNight -> R.raw.night
         condition == "Clear" && !isNight -> R.raw.sunny
@@ -467,37 +792,49 @@ fun WeatherWidget(viewModel: WeatherViewModel = viewModel()) {
         (condition == "Rain" || condition == "Drizzle") && isNight -> R.raw.rainy_night
         (condition == "Rain" || condition == "Drizzle") && !isNight -> R.raw.rainy_day
         condition == "Thunderstorm" -> R.raw.storm
-        condition in listOf("Sand", "Dust", "Ash", "Haze", "Fog", "Mist", "Smoke", "Sand", "Squall", "Tornado") -> R.raw.sandy
+        condition in listOf(
+            "Sand",
+            "Dust",
+            "Ash",
+            "Haze",
+            "Fog",
+            "Mist",
+            "Smoke",
+            "Sand",
+            "Squall",
+            "Tornado"
+        ) -> R.raw.sandy
+
         else -> if (isNight) R.raw.night else R.raw.sunny
     }
 
-    // Màu nền linh hoạt
     val widgetBgColor = when {
-        condition == "Clear" && !isNight -> SoftOrange
-        isNight -> Color(0xFFE8EAF6)
+        condition == "Clear" && !isNight -> MaterialTheme.colorScheme.tertiaryContainer
+        isNight -> MaterialTheme.colorScheme.surfaceVariant
         condition in listOf("Rain", "Drizzle", "Thunderstorm") -> Color(0xFFE0F7FA)
-        else -> Color(0xFFE3F2FD)
+        else -> MaterialTheme.colorScheme.surfaceVariant
     }
 
     val widgetTextColor = when {
         condition == "Clear" && !isNight -> Color(0xFFE65100)
-        isNight -> Color(0xFF283593)
+        isNight -> MaterialTheme.colorScheme.primary
         condition in listOf("Rain", "Drizzle", "Thunderstorm") -> Color(0xFF006064)
-        else -> Color(0xFF1565C0)
+        else -> MaterialTheme.colorScheme.primary
     }
 
     Column(
-        modifier = Modifier.wrapContentWidth() // Giới hạn Row chỉ rộng vừa đủ nội dung
+        modifier = Modifier.wrapContentWidth(),
+        horizontalAlignment = Alignment.End
     ) {
         Column(
             horizontalAlignment = Alignment.End,
             modifier = Modifier.padding(end = 8.dp)
         ) {
             Text(
-                text = cityName,
+                text = if (isLocationDenied) "Loading..." else cityName,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = MidnightBlue,
+                color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -505,57 +842,80 @@ fun WeatherWidget(viewModel: WeatherViewModel = viewModel()) {
             Text(
                 text = "$timeStr • $dateStr",
                 fontSize = 10.sp,
-                color = SilverMist,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
             )
         }
 
         Spacer(modifier = Modifier.height(5.dp))
 
-        // PHẦN CỤC THỜI TIẾT (Lồng thêm một Row nhỏ)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .shadow(
-                    elevation = 6.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    spotColor = Color.Gray.copy(alpha = 0.2f)
+        if (isLocationDenied) {
+            Column(horizontalAlignment = Alignment.End) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+                        .clickable {
+                            // --- THAY ĐỔI TẠI ĐÂY ---
+                            // Tạo Intent để mở thẳng trang Cài đặt (App Info) của ứng dụng này
+                            val intent = android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                            ).apply {
+                                data = android.net.Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Filled.LocationOff, "Location Off", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Enable Location", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+        else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .shadow(
+                        6.dp,
+                        RoundedCornerShape(16.dp),
+                        spotColor = Color.Gray.copy(alpha = 0.2f)
+                    )
+                    .background(widgetBgColor, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                val composition by rememberLottieComposition(
+                    LottieCompositionSpec.RawRes(
+                        lottieResId
+                    )
                 )
-                .background(
-                    color = widgetBgColor,
-                    shape = RoundedCornerShape(16.dp)
+                val progress by animateLottieCompositionAsState(
+                    composition,
+                    iterations = LottieConstants.IterateForever
                 )
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(lottieResId))
-            val progress by animateLottieCompositionAsState(
-                composition = composition,
-                iterations = LottieConstants.IterateForever
-            )
 
-            if (composition != null) {
-                LottieAnimation(
-                    composition = composition,
-                    progress = { progress },
-                    modifier = Modifier.size(36.dp)
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Filled.WbSunny,
-                    contentDescription = null,
-                    tint = Color(0xFFFF9800),
-                    modifier = Modifier.size(24.dp)
+                if (composition != null) {
+                    LottieAnimation(composition, { progress }, modifier = Modifier.size(36.dp))
+                } else {
+                    Icon(
+                        Icons.Filled.WbSunny,
+                        null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                Text(
+                    temperature,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                    color = widgetTextColor
                 )
             }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            Text(
-                text = temperature,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 14.sp,
-                color = widgetTextColor
-            )
         }
     }
 }
@@ -572,7 +932,7 @@ fun OutfitItemPlaceholder(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
             .padding(8.dp)
     ) {
         Box(
@@ -581,28 +941,17 @@ fun OutfitItemPlaceholder(
                 .size(56.dp)
                 .background(iconBgColor, RoundedCornerShape(16.dp))
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconColor,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(icon, null, tint = iconColor, modifier = Modifier.size(24.dp))
         }
-
-        Spacer(Modifier.width(16.dp))
-
+        Spacer(modifier = Modifier.width(16.dp))
         Column {
             Text(
-                text = name,
-                color = MidnightBlue,
+                name,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp
             )
-            Text(
-                text = subtext,
-                color = SilverMist,
-                fontSize = 12.sp
-            )
+            Text(subtext, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
     }
 }
@@ -611,7 +960,7 @@ fun OutfitItemPlaceholder(
 fun StatCard(title: String, count: String) {
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp),
         modifier = Modifier.size(88.dp)
     ) {
@@ -621,24 +970,18 @@ fun StatCard(title: String, count: String) {
             modifier = Modifier.fillMaxSize()
         ) {
             Text(
-                text = count,
+                count,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = AccentTeal
+                color = MaterialTheme.colorScheme.secondary
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = title,
+                title,
                 fontSize = 13.sp,
-                color = MidnightBlue,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Medium
             )
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun previewHomeUI() {
-    HomeUI()
 }

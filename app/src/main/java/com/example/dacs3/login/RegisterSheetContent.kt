@@ -193,7 +193,7 @@ public suspend fun onRegister(email: String, pass: String): Unit {
             this.email = email
             this.password = pass
         }
-        println("Đăng ký thành công! Hãy kiểm tra email để xác nhận.")
+        println("Register successfully, please check your email to confirm!")
     } catch (e: Exception) {
         e.printStackTrace()
     }

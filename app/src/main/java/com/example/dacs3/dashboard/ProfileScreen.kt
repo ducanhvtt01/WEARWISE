@@ -18,19 +18,17 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun ProfileScreen() {
+fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     var notificationsEnabled by remember { mutableStateOf(true) }
-    var darkModeEnabled by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(OffWhite)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 24.dp)
     ) {
         // --- HEADER ---
@@ -42,18 +40,15 @@ fun ProfileScreen() {
                 Icon(
                     imageVector = Icons.Filled.Person,
                     contentDescription = null,
-                    tint = MidnightBlue,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(35.dp)
-
                 )
-
                 Spacer(modifier = Modifier.width(8.dp))
-
                 Text(
                     text = "Profile",
                     fontSize = 35.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MidnightBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     letterSpacing = (-0.5).sp
                 )
             }
@@ -64,55 +59,74 @@ fun ProfileScreen() {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = LightGray),
+                    .shadow(
+                        8.dp,
+                        RoundedCornerShape(24.dp),
+                        spotColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Row(
-                    modifier = Modifier.padding(24.dp),
-                ) {
+                Row(modifier = Modifier.padding(24.dp)) {
                     Box(
                         modifier = Modifier
                             .size(100.dp)
-                            .background(SoftTeal, CircleShape),
+                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("A", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = AccentTeal)
-
-                        // Nút Edit Avatar nhỏ ở góc
+                        Text(
+                            "A",
+                            fontSize = 40.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .offset(x = 4.dp, y = 4.dp)
                                 .size(32.dp)
-                                .background(MidnightBlue, CircleShape)
-                                .clickable { /* TODO: Đổi ảnh đại diện */ },
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                .clickable { },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Filled.Edit,
+                                "Edit",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
                     Column(
-                    modifier = Modifier.padding(start = 55.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Alexander", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = MidnightBlue)
+                        modifier = Modifier.padding(start = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "Alexander",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
-
-                        Text("alexander@style.com", fontSize = 14.sp, color = SilverMist)
+                        Text(
+                            "alexander@style.com",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
-                            onClick = { /* TODO: Chỉnh sửa hồ sơ */ },
-                            colors = ButtonDefaults.buttonColors(containerColor = LightGray, contentColor = MidnightBlue),
+                            onClick = { },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Edit Profile", fontWeight = FontWeight.SemiBold)
                         }
-                     }
-
-
-
+                    }
                 }
             }
         }
@@ -122,8 +136,16 @@ fun ProfileScreen() {
         // --- PERSONALIZATION SECTION ---
         item {
             SectionTitle("AI Personalization")
-            SettingRow(icon = Icons.Outlined.Straighten, title = "My Measurements", subtitle = "Size M, 175cm, 70kg")
-            SettingRow(icon = Icons.Outlined.Style, title = "Style Preferences", subtitle = "Minimalist, Smart Casual")
+            SettingRow(
+                icon = Icons.Outlined.Straighten,
+                title = "My Measurements",
+                subtitle = "Size M, 175cm, 70kg"
+            )
+            SettingRow(
+                icon = Icons.Outlined.Style,
+                title = "Style Preferences",
+                subtitle = "Minimalist, Smart Casual"
+            )
         }
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
@@ -131,14 +153,28 @@ fun ProfileScreen() {
         // --- SETTINGS SECTION ---
         item {
             SectionTitle("App Settings")
-            SettingToggleRow(icon = Icons.Outlined.Notifications, title = "Notifications", isChecked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
-            SettingToggleRow(icon = Icons.Outlined.DarkMode, title = "Dark Mode", isChecked = darkModeEnabled, onCheckedChange = { darkModeEnabled = it })
-            SettingRow(icon = Icons.Outlined.Language, title = "Language", subtitle = "English (US)")
+            SettingToggleRow(
+                icon = Icons.Outlined.Notifications,
+                title = "Notifications",
+                isChecked = notificationsEnabled,
+                onCheckedChange = { notificationsEnabled = it })
+
+            // LIÊN KẾT NÚT GẠT VỚI HÀM ĐỔI THEME TỪ MAINACTIVITY
+            SettingToggleRow(
+                icon = Icons.Outlined.DarkMode,
+                title = "Dark Mode",
+                isChecked = isDarkMode,
+                onCheckedChange = onThemeChange
+            )
+            SettingRow(
+                icon = Icons.Outlined.Language,
+                title = "Language",
+                subtitle = "English (US)"
+            )
         }
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
 
-        // --- SUPPORT SECTION ---
         item {
             SectionTitle("Support")
             SettingRow(icon = Icons.Outlined.HelpOutline, title = "Help Center")
@@ -150,11 +186,16 @@ fun ProfileScreen() {
         // --- LOGOUT BUTTON ---
         item {
             OutlinedButton(
-                onClick = { /* TODO: Xử lý Đăng xuất và quay về LoginScreen */ },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                onClick = { },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE53935)), // Màu đỏ báo hiệu thoát
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE53935).copy(alpha = 0.5f))
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                )
             ) {
                 Icon(Icons.Outlined.ExitToApp, contentDescription = "Log out")
                 Spacer(modifier = Modifier.width(8.dp))
@@ -162,7 +203,7 @@ fun ProfileScreen() {
             }
         }
 
-        item { Spacer(modifier = Modifier.height(120.dp)) } // Tránh bị Bottom Bar che
+        item { Spacer(modifier = Modifier.height(120.dp)) }
     }
 }
 
@@ -172,7 +213,7 @@ fun SectionTitle(title: String) {
         text = title,
         fontSize = 14.sp,
         fontWeight = FontWeight.Bold,
-        color = SilverMist,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = 8.dp, start = 4.dp),
         letterSpacing = 1.sp
     )
@@ -184,32 +225,50 @@ fun SettingRow(icon: ImageVector, title: String, subtitle: String? = null) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .clickable { /* TODO: Xử lý khi bấm vào mục này */ }
+            .clickable { }
             .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(40.dp).background(Color.White, CircleShape),
+            modifier = Modifier
+                .size(40.dp)
+                .background(MaterialTheme.colorScheme.surface, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = MidnightBlue, modifier = Modifier.size(20.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
         }
-
         Spacer(modifier = Modifier.width(16.dp))
-
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MidnightBlue)
+            Text(
+                title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary
+            )
             if (subtitle != null) {
-                Text(text = subtitle, fontSize = 12.sp, color = SilverMist)
+                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-
-        Icon(Icons.Filled.ChevronRight, contentDescription = "Go", tint = SilverMist)
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = "Go",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
 @Composable
-fun SettingToggleRow(icon: ImageVector, title: String, isChecked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun SettingToggleRow(
+    icon: ImageVector,
+    title: String,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -217,25 +276,35 @@ fun SettingToggleRow(icon: ImageVector, title: String, isChecked: Boolean, onChe
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(40.dp).background(Color.White, CircleShape),
+            modifier = Modifier
+                .size(40.dp)
+                .background(MaterialTheme.colorScheme.surface, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = MidnightBlue, modifier = Modifier.size(20.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
         }
-
         Spacer(modifier = Modifier.width(16.dp))
-
-        Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = MidnightBlue, modifier = Modifier.weight(1f))
-
+        Text(
+            title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
         Switch(
             checked = isChecked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = AccentTeal, uncheckedTrackColor = Color.Gray, uncheckedThumbColor = Color.White))
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = MaterialTheme.colorScheme.secondary,
+                uncheckedTrackColor = Color.Gray,
+                uncheckedThumbColor = MaterialTheme.colorScheme.surface
+            )
+        )
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewProfileScreen() {
-    ProfileScreen()
 }

@@ -10,19 +10,44 @@ import androidx.compose.ui.unit.dp
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun Step2Screen(viewModel: SurveyViewModel) {
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .verticalScroll(rememberScrollState())) {
         SurveyTitle("Your Body Profile", "Highlighting your best features with precise matching.")
+
         SectionLabel("BODY SHAPE")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf("Hourglass", "Pear", "Rectangle", "Inverted Triangle", "Apple").forEach { shape ->
-                SingleChoiceChip(text = shape, selected = viewModel.bodyShape == shape, onClick = { viewModel.bodyShape = shape })
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            listOf(
+                "Hourglass",
+                "Pear",
+                "Rectangle",
+                "Inverted Triangle",
+                "Apple"
+            ).forEach { shape ->
+                SingleChoiceChip(
+                    text = shape,
+                    selected = viewModel.bodyShape == shape,
+                    onClick = { viewModel.bodyShape = shape }
+                )
             }
         }
+
         Spacer(modifier = Modifier.height(32.dp))
+
         SectionLabel("SKIN TONE")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             listOf("Fair", "Medium", "Olive", "Tan", "Deep").forEach { tone ->
-                SingleChoiceChip(text = tone, selected = viewModel.skinTone == tone, onClick = { viewModel.skinTone = tone })
+                SingleChoiceChip(
+                    text = tone,
+                    selected = viewModel.skinTone == tone,
+                    onClick = { viewModel.skinTone = tone }
+                )
             }
         }
     }

@@ -10,6 +10,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -20,8 +24,8 @@ import androidx.navigation.compose.rememberNavController
 // --- IMPORT CÁC MÀN HÌNH ---
 import com.example.dacs3.dashboard.HomeUI
 import com.example.dacs3.login.LoginScreen
-import com.example.dacs3.survey.SurveyMasterScreen // <-- Gọi màn hình điều phối khảo sát mới
-import com.example.dacs3.ui.theme.DACS3Theme
+import com.example.dacs3.survey.SurveyMasterScreen
+import com.example.dacs3.ui.theme.WearwiseTheme // Hãy đảm bảo bạn đã import đúng đường dẫn Theme của bạn
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,61 +37,51 @@ class MainActivity : ComponentActivity() {
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
 
         setContent {
-            DACS3Theme {
-                AppNavigation()
+            // TẠO STATE THEME TOÀN CỤC, MẶC ĐỊNH LÀ FALSE (SÁNG)
+            var isDarkMode by remember { mutableStateOf(false) }
+
+            // Ép Theme chạy theo biến isDarkMode của chúng ta
+            WearwiseTheme(darkTheme = isDarkMode) {
+                AppNavigation(
+                    isDarkMode = isDarkMode,
+                    onThemeChange = { isDarkMode = it }
+                )
             }
         }
     }
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     val navController = rememberNavController()
 
     NavHost(
         navController = navController,
         startDestination = "login",
-        // Hiệu ứng chuyển cảnh giữa các màn hình chính (Login -> Survey -> Home)
-        enterTransition = {
-            slideInHorizontally(animationSpec = tween(500)) { it } + fadeIn(tween(500))
-        },
-        exitTransition = {
-            slideOutHorizontally(animationSpec = tween(500)) { -it } + fadeOut(tween(500))
-        },
-        popEnterTransition = {
-            slideInHorizontally(animationSpec = tween(500)) { -it } + fadeIn(tween(500))
-        },
-        popExitTransition = {
-            slideOutHorizontally(animationSpec = tween(500)) { it } + fadeOut(tween(500))
-        }
+        enterTransition = { slideInHorizontally(animationSpec = tween(500)) { it } + fadeIn(tween(500)) },
+        exitTransition = { slideOutHorizontally(animationSpec = tween(500)) { -it } + fadeOut(tween(500)) },
+        popEnterTransition = { slideInHorizontally(animationSpec = tween(500)) { -it } + fadeIn(tween(500)) },
+        popExitTransition = { slideOutHorizontally(animationSpec = tween(500)) { it } + fadeOut(tween(500)) }
     ) {
-        // --- 1. MÀN HÌNH ĐĂNG NHẬP ---
         composable("login") {
             LoginScreen(
                 onLoginSuccess = {
-                    // Chuyển thẳng vào luồng khảo sát
-                    navController.navigate("survey") {
-                        popUpTo("login") { inclusive = true }
-                    }
+                    navController.navigate("survey") { popUpTo("login") { inclusive = true } }
                 }
             )
         }
 
-        // --- 2. LUỒNG KHẢO SÁT (MASTER) ---
-        // Tại đây, SurveyMasterScreen sẽ tự quản lý việc trượt giữa 3 bước bên trong nó
         composable("survey") {
             SurveyMasterScreen(
                 onFinish = {
-                    navController.navigate("home") {
-                        popUpTo("survey") { inclusive = true }
-                    }
+                    navController.navigate("home") { popUpTo("survey") { inclusive = true } }
                 }
             )
         }
 
-        // --- 3. TRANG CHỦ ---
         composable("home") {
-            HomeUI()
+            // Truyền trạng thái theme xuống cho HomeUI
+            HomeUI(isDarkMode = isDarkMode, onThemeChange = onThemeChange)
         }
     }
 }

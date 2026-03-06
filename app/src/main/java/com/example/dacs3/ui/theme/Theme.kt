@@ -1,58 +1,52 @@
 package com.example.dacs3.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+// 1. BẢNG MÀU SÁNG (Gắn các màu gốc của bạn vào chuẩn của Material 3)
+private val LightColors = lightColorScheme(
+    background = OffWhite,
+    surface = Color.White,
+    primary = MidnightBlue,
     onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    secondary = AccentTeal,
+    secondaryContainer = SoftTeal,
+    tertiaryContainer = SoftOrange,
+    surfaceVariant = LightGray,
+    onSurface = MidnightBlue,
+    onSurfaceVariant = SilverMist,
+    error = Color(0xFFD32F2F)
 )
 
+// 2. BẢNG MÀU TỐI
+private val DarkColors = darkColorScheme(
+    background = DarkBackground,
+    surface = DarkSurface,
+    primary = TextDarkPrimary,
+    onPrimary = DarkBackground,
+    secondary = DarkAccentTeal,
+    secondaryContainer = DarkSoftTeal,
+    tertiaryContainer = DarkSoftOrange,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurface = TextDarkPrimary,
+    onSurfaceVariant = TextDarkSecondary,
+    error = Color(0xFFEF5350)
+)
+
+// 3. HÀM ÁP DỤNG THEME
 @Composable
-fun DACS3Theme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+fun WearwiseTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(), // Tự động lấy theo chế độ máy
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = if (darkTheme) DarkColors else LightColors
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
         content = content
     )
 }

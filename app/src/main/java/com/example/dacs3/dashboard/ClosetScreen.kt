@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DryCleaning
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,11 +29,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Dữ liệu giả lập cho quần áo
 data class WardrobeItem(val id: Int, val name: String, val brand: String, val colorTag: Color)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,14 +40,12 @@ fun ClosetScreen() {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = listOf("All", "Tops", "Bottoms", "Outerwear", "Shoes", "Accs")
 
-    // --- STATE CHO TÌM KIẾM ---
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // Tự động bật bàn phím khi nhấn Search
     LaunchedEffect(isSearching) {
         if (isSearching) {
             focusRequester.requestFocus()
@@ -62,7 +57,7 @@ fun ClosetScreen() {
 
     val items = listOf(
         WardrobeItem(1, "White Oxford Shirt", "Zara", Color(0xFFF5F5F5)),
-        WardrobeItem(2, "Navy Tailored Trousers", "Mango", MidnightBlue),
+        WardrobeItem(2, "Navy Tailored Trousers", "Mango", Color(0xFF1A237E)),
         WardrobeItem(3, "Beige Trench Coat", "Burberry", Color(0xFFD7CCC8)),
         WardrobeItem(4, "Classic Denim Jacket", "Levi's", Color(0xFF64B5F6)),
         WardrobeItem(5, "Brown Leather Loafers", "Clarks", Color(0xFF8D6E63)),
@@ -77,10 +72,10 @@ fun ClosetScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(OffWhite)
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 24.dp)
     ) {
-        // --- HEADER CÓ TÍCH HỢP TÌM KIẾM ---
+        // --- HEADER ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -91,39 +86,39 @@ fun ClosetScreen() {
         ) {
             if (!isSearching) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Default.DryCleaning,
-                    contentDescription = "",
-                    tint = MidnightBlue,
-                    modifier = Modifier.size(35.dp))
-                    
+                    Icon(
+                        imageVector = Icons.Default.DryCleaning,
+                        contentDescription = "",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(35.dp)
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
-
-                    Text(text = "Closet",
+                    Text(
+                        text = "Closet",
                         fontSize = 35.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MidnightBlue,
-                        letterSpacing = (-0.5).sp)
-                 }
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = (-0.5).sp
+                    )
+                }
 
                 IconButton(
                     onClick = { isSearching = true },
-                    modifier = Modifier.background(Color.White, CircleShape)
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface, CircleShape)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Search,
+                        Icons.Filled.Search,
                         contentDescription = "Search",
-                        tint = MidnightBlue,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(30.dp)
                     )
                 }
-            }
-            else {
-                // --- SỬ DỤNG BASIC TEXT FIELD ĐỂ FIX LỖI CHỮ BỊ CHE ---
+            } else {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp)
-                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
                         .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
@@ -135,47 +130,44 @@ fun ClosetScreen() {
                             .focusRequester(focusRequester),
                         singleLine = true,
                         textStyle = TextStyle(
-                            color = MidnightBlue,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         ),
-                        cursorBrush = SolidColor(MidnightBlue),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         decorationBox = { innerTextField ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.Search,
+                                    Icons.Filled.Search,
                                     contentDescription = null,
-                                    tint = AccentTeal,
+                                    tint = MaterialTheme.colorScheme.secondary,
                                     modifier = Modifier.size(20.dp)
                                 )
-
                                 Spacer(modifier = Modifier.width(8.dp))
-
                                 Box(modifier = Modifier.weight(1f)) {
                                     if (searchQuery.isEmpty()) {
                                         Text(
-                                            text = "Search clothes...",
-                                            color = SilverMist,
+                                            "Search clothes...",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontSize = 14.sp
                                         )
                                     }
-                                    innerTextField() // Nơi hiển thị văn bản nhập vào
+                                    innerTextField()
                                 }
-
                                 IconButton(
                                     onClick = {
-                                        if (searchQuery.isEmpty()) isSearching = false
-                                        else searchQuery = ""
+                                        if (searchQuery.isEmpty()) isSearching =
+                                            false else searchQuery = ""
                                     },
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Filled.Close,
+                                        Icons.Filled.Close,
                                         contentDescription = null,
-                                        tint = SilverMist,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -205,15 +197,13 @@ fun ClosetScreen() {
                         )
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MidnightBlue,
-                        selectedLabelColor = Color.White,
-                        containerColor = Color.White,
-                        labelColor = SilverMist
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     shape = RoundedCornerShape(16.dp),
-                    elevation = FilterChipDefaults.filterChipElevation(
-                        elevation = if (isSelected) 4.dp else 1.dp
-                    )
+                    elevation = FilterChipDefaults.filterChipElevation(elevation = if (isSelected) 4.dp else 1.dp)
                 )
             }
         }
@@ -229,7 +219,7 @@ fun ClosetScreen() {
                 Card(
                     modifier = Modifier.height(200.dp),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = SoftTeal),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                     onClick = { /* TODO: Add function */ }
                 ) {
                     Column(
@@ -240,19 +230,19 @@ fun ClosetScreen() {
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
-                                .background(AccentTeal, CircleShape),
+                                .background(MaterialTheme.colorScheme.secondary, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Add,
+                                Icons.Filled.Add,
                                 contentDescription = null,
-                                tint = Color.White
+                                tint = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Add New",
-                            color = MidnightBlue,
+                            "Add New",
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -272,9 +262,13 @@ fun ClosetItemCard(item: WardrobeItem) {
         modifier = Modifier
             .fillMaxWidth()
             .height(200.dp)
-            .shadow(4.dp, RoundedCornerShape(20.dp), spotColor = LightGray),
+            .shadow(
+                4.dp,
+                RoundedCornerShape(20.dp),
+                spotColor = MaterialTheme.colorScheme.surfaceVariant
+            ),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Box(
@@ -282,16 +276,15 @@ fun ClosetItemCard(item: WardrobeItem) {
                     .fillMaxWidth()
                     .weight(1f)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(LightGray.copy(alpha = 0.5f)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Checkroom,
+                    Icons.Outlined.Checkroom,
                     contentDescription = null,
                     modifier = Modifier.size(40.dp),
-                    tint = SilverMist
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -301,28 +294,20 @@ fun ClosetItemCard(item: WardrobeItem) {
                         .shadow(1.dp, CircleShape)
                 )
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-
             Text(
-                text = item.brand,
+                item.brand,
                 fontSize = 11.sp,
-                color = SilverMist,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                text = item.name,
+                item.name,
                 fontSize = 14.sp,
-                color = MidnightBlue,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewClosetScreen() {
-    ClosetScreen()
 }

@@ -1,5 +1,7 @@
 package com.example.dacs3.dashboard
 
+import android.content.Context
+import android.location.Geocoder
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -10,6 +12,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Query
 import java.text.Normalizer
+import java.util.Locale
 import java.util.regex.Pattern
 import kotlin.math.roundToInt
 
@@ -21,7 +24,7 @@ fun String.removeAccent(): String {
     return result.replace('đ', 'd').replace('Đ', 'D')
 }
 
-// 1. CÁC LỚP DỮ LIỆU (Giữ nguyên hoặc cập nhật name)
+// 1. CÁC LỚP DỮ LIỆU
 data class WeatherResponse(
     val name: String,
     val main: MainData,
@@ -35,6 +38,14 @@ interface OpenWeatherApi {
     @GET("data/2.5/weather")
     suspend fun getCurrentWeather(
         @Query("q") cityName: String,
+        @Query("appid") apiKey: String,
+        @Query("units") units: String = "metric"
+    ): WeatherResponse
+
+    @GET("data/2.5/weather")
+    suspend fun getWeatherByLocation(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
         @Query("appid") apiKey: String,
         @Query("units") units: String = "metric"
     ): WeatherResponse
@@ -66,12 +77,11 @@ class WeatherViewModel : ViewModel() {
     private val _cityName = MutableStateFlow("Loading...")
     val cityName: StateFlow<String> = _cityName
 
+    private val myApiKey = "a2ae8f3c11d5bff557f2e81f52a543db"
+
     fun fetchWeather() {
         viewModelScope.launch {
             try {
-                val myApiKey = "a2ae8f3c11d5bff557f2e81f52a543db"
-
-                // Gọi API cho thành phố bạn muốn
                 val response = RetrofitInstance.api.getCurrentWeather(
                     cityName = "Da Nang",
                     apiKey = myApiKey
@@ -83,12 +93,7 @@ class WeatherViewModel : ViewModel() {
                 _isNight.value = weatherData?.icon?.endsWith("n") ?: false
 
                 val rawName = response.name
-                val cleanName = if (rawName.equals("Turan", ignoreCase = true)) {
-                    "Da Nang" // Xử lý riêng lỗi tên cổ của Đà Nẵng
-                } else {
-                    rawName.removeAccent() // Các thành phố khác tự động bỏ dấu
-                }
-
+                val cleanName = if (rawName.equals("Turan", ignoreCase = true)) "Da Nang" else rawName.removeAccent()
                 _cityName.value = cleanName
 
             } catch (e: Exception) {
@@ -96,6 +101,47 @@ class WeatherViewModel : ViewModel() {
                 _condition.value = "Clear"
                 _isNight.value = false
                 _cityName.value = "Da Nang"
+            }
+        }
+    }
+
+    // HÀM MỚI: Truyền thêm context để dùng Geocoder dịch tọa độ ra tên Thành phố
+    fun fetchWeatherByLocation(context: Context, lat: Double, lon: Double) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitInstance.api.getWeatherByLocation(
+                    lat = lat,
+                    lon = lon,
+                    apiKey = myApiKey
+                )
+
+                val weatherData = response.weather.firstOrNull()
+                _temperature.value = "${response.main.temp.roundToInt()}°C"
+                _condition.value = weatherData?.main ?: "Clear"
+                _isNight.value = weatherData?.icon?.endsWith("n") ?: false
+
+                // Dùng Geocoder để lấy tên Thành Phố/Tỉnh thay vì tên Phường/Xã
+                try {
+                    val geocoder = Geocoder(context, Locale.ENGLISH)
+                    val addresses = geocoder.getFromLocation(lat, lon, 1)
+
+                    if (!addresses.isNullOrEmpty()) {
+                        val address = addresses[0]
+                        // Ưu tiên lấy adminArea (Tỉnh/Thành phố trực thuộc TW), nếu không có thì lấy locality (Thành phố thuộc tỉnh)
+                        val city = address.adminArea ?: address.locality ?: response.name
+                        val cleanName = if (city.equals("Turan", ignoreCase = true)) "Da Nang" else city.removeAccent()
+
+                        // Cắt bỏ chữ "Province" hoặc "City" nếu có để tên gọn hơn (Ví dụ: "Da Nang City" -> "Da Nang")
+                        _cityName.value = cleanName.replace(" Province", "").replace(" City", "")
+                    } else {
+                        _cityName.value = response.name.removeAccent()
+                    }
+                } catch (e: Exception) {
+                    _cityName.value = response.name.removeAccent()
+                }
+
+            } catch (e: Exception) {
+                fetchWeather()
             }
         }
     }
