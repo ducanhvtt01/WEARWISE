@@ -68,6 +68,7 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:postgrest-kt:2.5.0") // Thao tác Database
     implementation("io.github.jan-tennert.supabase:gotrue-kt:2.5.0")    // Đăng nhập (Auth)
     implementation("io.github.jan-tennert.supabase:storage-kt:2.5.0")   // Lưu ảnh quần áo
+    implementation("io.github.jan-tennert.supabase:realtime-kt:2.5.0")
 
     // Serialization (Để chuyển đổi JSON sang Class)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

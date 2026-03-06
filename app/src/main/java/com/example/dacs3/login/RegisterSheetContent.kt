@@ -18,7 +18,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dacs3.connectDB.supabase
 import com.example.dacs3.login.ui.theme.*
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.builtin.Email
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,11 +158,20 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
 
         Spacer(modifier = Modifier.height(40.dp))
 
+        val scope = rememberCoroutineScope()
+
         Button(
             onClick = {
-                // Bạn có thể thêm logic kiểm tra mật khẩu khớp nhau ở đây
                 if (password == confirmPassword) {
-                    onRegisterSuccess()
+                    scope.launch {
+                        try {
+                            onRegister(email, password)
+                            onRegisterSuccess()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+
                 }
             },
             modifier = Modifier.fillMaxWidth().height(54.dp),
@@ -171,5 +184,17 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
         TextButton(onClick = onBackToLogin, modifier = Modifier.fillMaxWidth()) {
             Text("Already a member? Sign In", color = MidnightBlue.copy(alpha = 0.7f), fontSize = 13.sp)
         }
+    }
+}
+
+public suspend fun onRegister(email: String, pass: String): Unit {
+    try {
+        supabase.auth.signUpWith(Email) {
+            this.email = email
+            this.password = pass
+        }
+        println("Đăng ký thành công! Hãy kiểm tra email để xác nhận.")
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }
