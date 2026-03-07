@@ -44,6 +44,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
+import java.util.Calendar
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -351,15 +352,28 @@ fun DashboardContent() {
                     .padding(top = 32.dp, bottom = 24.dp)
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    // 1. Lấy giờ hiện tại (từ 0 đến 23)
+                    val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+                    // 2. Dùng when để tạo câu chào tương ứng
+                    val greetingText = when (currentHour) {
+                        in 5..11 -> "Good morning, ☀️"
+                        in 12..17 -> "Good afternoon, 🌤️"
+                        in 18..22 -> "Good evening, 🌙"
+                        else -> "Up late, ✨"
+                    }
+
+                    // 3. Hiển thị câu chào
                     Text(
-                        "Good morning,",
+                        text = greetingText,
                         fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
                     )
-                    Spacer(modifier = Modifier.height(5.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        "Đức Anh \uD83D\uDC4B",
-                        fontSize = 24.sp,
+                        text = "Đức Anh", // Xoá icon vẫy tay ở đây vì đã có ở trên
+                        fontSize = 26.sp,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
