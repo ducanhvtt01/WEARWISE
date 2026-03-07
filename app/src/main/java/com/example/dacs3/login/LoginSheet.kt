@@ -154,12 +154,12 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
                             LoginResult.EMAIL_NOT_CONFIRMED -> {
                                 Toast.makeText(
                                     context,
-                                    "Tài khoản của bạn chưa xác nhận Email. Vui lòng kiểm tra hộp thư!",
+                                    "Please verify your email address!",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
                             LoginResult.INVALID_CREDENTIALS -> {
-                                Toast.makeText(context, "Email hoặc mật khẩu không chính xác!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Email or password is wrong!", Toast.LENGTH_SHORT).show()
                             }
                             LoginResult.ERROR -> {
                                 Toast.makeText(context, "Đã xảy ra lỗi kết nối. Thử lại sau!", Toast.LENGTH_SHORT).show()

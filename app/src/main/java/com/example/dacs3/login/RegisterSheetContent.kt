@@ -166,7 +166,7 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                 if (password == confirmPassword) {
                     scope.launch {
                         try {
-                            onRegister(email, password)
+                            onRegister(email, password, name)
                             Toast.makeText(context, "Vui lòng kiểm tra email xác nhận!", Toast.LENGTH_LONG).show()
                             onRegisterSuccess()
                         } catch (e: Exception) {
