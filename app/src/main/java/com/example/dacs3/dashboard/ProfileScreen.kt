@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -18,12 +19,63 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.serialization.SerialName
 
+// Giữ nguyên Data class của bạn
+data class Profile(
+    val id: String,
+    val username: String? = null,
+    @SerialName("full_name") val fullName: String? = null,
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+    val gender: String? = null,
+    @SerialName("height_cm") val height: Int? = null,
+    @SerialName("weight_kg") val weight: Int? = null,
+    @SerialName("body_shape") val bodyShape: String? = null,
+    @SerialName("favorite_styles") val favoriteStyles: List<String>? = null
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     var notificationsEnabled by remember { mutableStateOf(true) }
+
+    // 1. TẠO TRẠNG THÁI (STATE) ĐỂ LƯU THÔNG TIN PROFILE VÀ QUẢN LÝ BOTTOM SHEET
+    var showMeasurementSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Biến tạm để giả lập dữ liệu (Sau này bạn sẽ lấy từ Supabase ViewModel về đây)
+    var userProfile by remember {
+        mutableStateOf(
+            Profile(id = "1", height = 175, weight = 70, bodyShape = "Rectangle")
+        )
+    }
+
+    // --- HIỂN THỊ BOTTOM SHEET ---
+    if (showMeasurementSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showMeasurementSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            MeasurementEditSheetContent(
+                currentProfile = userProfile,
+                onSave = { updatedHeight, updatedWeight, updatedShape ->
+                    // Cập nhật lại state của Profile, UI sẽ tự động đổi text
+                    userProfile = userProfile.copy(
+                        height = updatedHeight,
+                        weight = updatedWeight,
+                        bodyShape = updatedShape
+                    )
+                    showMeasurementSheet = false
+                    // TODO: Gọi hàm update dữ liệu lên Supabase ở đây
+                },
+                onCancel = { showMeasurementSheet = false }
+            )
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -136,10 +188,13 @@ fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
         // --- PERSONALIZATION SECTION ---
         item {
             SectionTitle("AI Personalization")
+
+            // 2. GẮN SỰ KIỆN ONCLICK ĐỂ MỞ BOTTOM SHEET
             SettingRow(
                 icon = Icons.Outlined.Straighten,
                 title = "My Measurements",
-                subtitle = "Size M, 175cm, 70kg"
+                subtitle = "${userProfile.height ?: "--"}cm, ${userProfile.weight ?: "--"}kg, ${userProfile.bodyShape ?: "Unknown"}",
+                onClick = { showMeasurementSheet = true } // <-- Quan trọng
             )
             SettingRow(
                 icon = Icons.Outlined.Style,
@@ -159,7 +214,6 @@ fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
                 isChecked = notificationsEnabled,
                 onCheckedChange = { notificationsEnabled = it })
 
-            // LIÊN KẾT NÚT GẠT VỚI HÀM ĐỔI THEME TỪ MAINACTIVITY
             SettingToggleRow(
                 icon = Icons.Outlined.DarkMode,
                 title = "Dark Mode",
@@ -207,6 +261,127 @@ fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
     }
 }
 
+// 3. TẠO GIAO DIỆN CHỈNH SỬA SỐ ĐO
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MeasurementEditSheetContent(
+    currentProfile: Profile,
+    onSave: (Int?, Int?, String?) -> Unit,
+    onCancel: () -> Unit
+) {
+    var heightInput by remember { mutableStateOf(currentProfile.height?.toString() ?: "") }
+    var weightInput by remember { mutableStateOf(currentProfile.weight?.toString() ?: "") }
+    var selectedShape by remember { mutableStateOf(currentProfile.bodyShape ?: "Rectangle") }
+
+    val bodyShapes = listOf("Rectangle", "Triangle", "Hourglass", "Inverted Triangle", "Oval")
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Edit Measurements",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            OutlinedTextField(
+                value = heightInput,
+                onValueChange = { heightInput = it },
+                label = { Text("Height (cm)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp)
+            )
+
+            OutlinedTextField(
+                value = weightInput,
+                onValueChange = { weightInput = it },
+                label = { Text("Weight (kg)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(12.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Dropdown chọn Body Shape
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selectedShape,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Body Shape") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                bodyShapes.forEach { shape ->
+                    DropdownMenuItem(
+                        text = { Text(shape) },
+                        onClick = {
+                            selectedShape = shape
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Cancel")
+            }
+            Button(
+                onClick = {
+                    // Chuyển chuỗi thành Int trước khi lưu
+                    onSave(heightInput.toIntOrNull(), weightInput.toIntOrNull(), selectedShape)
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(50.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Save Changes")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
 @Composable
 fun SectionTitle(title: String) {
     Text(
@@ -219,13 +394,19 @@ fun SectionTitle(title: String) {
     )
 }
 
+// 4. SỬA HÀM SETTING ROW ĐỂ NHẬN SỰ KIỆN ONCLICK
 @Composable
-fun SettingRow(icon: ImageVector, title: String, subtitle: String? = null) {
+fun SettingRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    onClick: () -> Unit = {} // <-- Thêm biến này
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .clickable { }
+            .clickable { onClick() } // <-- Gọi sự kiện ở đây
             .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -83,4 +83,6 @@ dependencies {
 
     // Thư viện lưu trạng thái giao diện của ứng dụng
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
 }

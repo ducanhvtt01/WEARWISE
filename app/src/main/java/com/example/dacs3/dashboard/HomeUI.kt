@@ -40,10 +40,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airbnb.lottie.compose.*
 import com.example.dacs3.R
 import com.example.dacs3.login.ui.theme.MidnightBlue
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.content
+import com.google.ai.client.generativeai.type.generationConfig
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.roundToInt
 
@@ -53,6 +58,54 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
+
+    // --- CÁC BIẾN CHO AI SCAN ---
+    val scope = rememberCoroutineScope()
+    var isAiScanning by remember { mutableStateOf(false) }
+    var aiScanResult by remember { mutableStateOf<String?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            isAiScanning = true
+            scope.launch(Dispatchers.IO) {
+                try {
+                    // CẤU HÌNH CHUẨN ĐỂ TRÁNH LỖI NOT_FOUND VÀ QUOTA
+                    val generativeModel = GenerativeModel(
+                        modelName = "gemini-2.5-flash", // Đổi tên ở đây
+                        apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8",
+                        generationConfig = generationConfig {
+                            temperature = 0.4f // Giảm độ ngẫu nhiên để kết quả chính xác hơn
+                            topK = 32
+                            topP = 1f
+                        }
+                    )
+
+                    val prompt = "What clothing item is this? Analyze this image. " +
+                            "Return ONLY the brand and product name (e.g., Uniqlo Blue Denim Jacket). " +
+                            "If no brand, describe it briefly. NO EXPLANATION."
+
+                    val response = generativeModel.generateContent(
+                        content {
+                            image(bitmap)
+                            text(prompt)
+                        }
+                    )
+                    aiScanResult = response.text
+                } catch (e: Exception) {
+                    // Xử lý lỗi quota nếu bấm quá nhanh
+                    if (e.message?.contains("429") == true) {
+                        aiScanResult = "Rate limit reached. Please wait 60s."
+                    } else {
+                        aiScanResult = "AI Scan Error!: ${e.localizedMessage}"
+                    }
+                } finally {
+                    isAiScanning = false
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -120,20 +173,78 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                     0 -> DashboardContent()
                     1 -> ClosetScreen()
                     2 -> StylistScreen()
-                    // Truyền tiếp vào ProfileScreen
                     3 -> ProfileScreen(isDarkMode = isDarkMode, onThemeChange = onThemeChange)
                 }
             }
         }
 
-        // --- NÚT FAB MÁY ẢNH AI (Tự custom để xóa viền đen) ---
+        // --- HỘP THOẠI HIỂN THỊ KẾT QUẢ AI SCAN ---
+        if (isAiScanning || aiScanResult != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!isAiScanning) aiScanResult = null
+                },
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = {
+                    Text(
+                        text = if (isAiScanning) "AI is analyzing..." else "✨ AI Stylist Result",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    if (isAiScanning) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "Identifying clothing...",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = aiScanResult ?: "No results found",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                confirmButton = {
+                    if (!isAiScanning) {
+                        Button(
+                            onClick = {
+                                // TODO: Nối logic lưu vào ClosetScreen ở đây
+                                aiScanResult = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("Add to Closet")
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (!isAiScanning) {
+                        TextButton(onClick = { aiScanResult = null }) {
+                            Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            )
+        }
+
+        // --- NÚT FAB MÁY ẢNH AI ---
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 110.dp, end = 16.dp)
                 .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                .shadow(8.dp, CircleShape) // Tạo bóng đổ cho nút nổi lên
+                .shadow(8.dp, CircleShape)
                 .background(
                     brush = Brush.horizontalGradient(
                         colors = listOf(
@@ -143,8 +254,10 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                     ),
                     shape = CircleShape
                 )
-                .clip(CircleShape) // Bo tròn hiệu ứng bấm (ripple)
-                .clickable { /* TODO: Mở Camera Scan đồ */ }
+                .clip(CircleShape)
+                .clickable {
+                    cameraLauncher.launch(null) // GỌI CAMERA
+                }
                 .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
@@ -152,7 +265,7 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                         offsetY += dragAmount.y
                     }
                 }
-                .padding(horizontal = 20.dp, vertical = 16.dp) // Căn chỉnh lề trong
+                .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
             if (isDarkMode == false) {
                 Icon(Icons.Filled.CameraAlt, "AI Scan", tint = Color.White)
@@ -340,9 +453,11 @@ fun DashboardContent() {
         }
     }
 
-    LazyColumn(modifier = Modifier
-        .fillMaxSize()
-        .padding(horizontal = 24.dp)) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp)
+    ) {
         item {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -352,10 +467,8 @@ fun DashboardContent() {
                     .padding(top = 32.dp, bottom = 24.dp)
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    // 1. Lấy giờ hiện tại (từ 0 đến 23)
                     val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
-                    // 2. Dùng when để tạo câu chào tương ứng
                     val greetingText = when (currentHour) {
                         in 5..11 -> "Good morning, ☀️"
                         in 12..17 -> "Good afternoon, 🌤️"
@@ -363,7 +476,6 @@ fun DashboardContent() {
                         else -> "Up late, ✨"
                     }
 
-                    // 3. Hiển thị câu chào
                     Text(
                         text = greetingText,
                         fontSize = 14.sp,
@@ -372,7 +484,7 @@ fun DashboardContent() {
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Đức Anh", // Xoá icon vẫy tay ở đây vì đã có ở trên
+                        text = "Đức Anh",
                         fontSize = 26.sp,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
@@ -874,27 +986,39 @@ fun WeatherWidget(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+                        .shadow(
+                            4.dp,
+                            RoundedCornerShape(16.dp),
+                            spotColor = MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                        )
                         .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
                         .clickable {
-                            // --- THAY ĐỔI TẠI ĐÂY ---
-                            // Tạo Intent để mở thẳng trang Cài đặt (App Info) của ứng dụng này
                             val intent = android.content.Intent(
                                 android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS
                             ).apply {
-                                data = android.net.Uri.fromParts("package", context.packageName, null)
+                                data =
+                                    android.net.Uri.fromParts("package", context.packageName, null)
                             }
                             context.startActivity(intent)
                         }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Filled.LocationOff, "Location Off", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Filled.LocationOff,
+                        "Location Off",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Enable Location", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "Enable Location",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
-        }
-        else {
+        } else {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
