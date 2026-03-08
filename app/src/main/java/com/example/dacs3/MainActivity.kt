@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
+import com.example.dacs3.connectDB.SupabaseManager
 import com.example.dacs3.connectDB.supabase
 import com.example.dacs3.dashboard.HomeUI
 import com.example.dacs3.login.LoginScreen
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SupabaseManager.init(this)
         enableEdgeToEdge()
 
         // Cập nhật intent lần đầu khi App mở
@@ -100,6 +102,15 @@ fun AppNavigation(
     isDarkMode: Boolean,
     onThemeChange: (Boolean) -> Unit
 ) {
+    LaunchedEffect(Unit) {
+        val session = supabase.auth.currentSessionOrNull()
+        if (session != null) {
+            // Nếu đã có session, bỏ qua màn hình login và đi thẳng vào Home
+            navController.navigate("home") {
+                popUpTo("login") { inclusive = true }
+            }
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = "login"
@@ -107,7 +118,7 @@ fun AppNavigation(
         composable("login") {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate("survey") {
+                    navController.navigate("home") {
                         popUpTo("login") { inclusive = true }
                     }
                 }

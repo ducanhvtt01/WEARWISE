@@ -44,13 +44,6 @@ enum class AuthSheetType {LOGIN, REGISTER}
 fun LoginScreen(onLoginSuccess: () -> Unit) { // Nhận callback từ MainActivity
     val context = LocalContext.current
 
-    // --- TỰ ĐỘNG CHECK KHI VÀO APP ---
-    LaunchedEffect(Unit) {
-        if (isUserLoggedIn()) {
-            onLoginSuccess() // Chuyển thẳng vào Home
-        }
-    }
-
     var showIntro by remember { mutableStateOf(true) }
 
     // Quản lý ExoPlayer trong Compose
