@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -39,16 +40,16 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airbnb.lottie.compose.*
 import com.example.dacs3.R
-import com.example.dacs3.login.ui.theme.MidnightBlue
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject // THÊM THƯ VIỆN NÀY ĐỂ PARSE JSON
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.Calendar
 import kotlin.math.roundToInt
 
@@ -59,10 +60,11 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
-    // --- CÁC BIẾN CHO AI SCAN ---
+    // --- CÁC BIẾN CHO AI SCAN TRẢ VỀ JSON ---
     val scope = rememberCoroutineScope()
     var isAiScanning by remember { mutableStateOf(false) }
-    var aiScanResult by remember { mutableStateOf<String?>(null) }
+    var aiScanResultText by remember { mutableStateOf<String?>(null) } // Để hiển thị lên màn hình
+    var rawScannedJson by remember { mutableStateOf<JSONObject?>(null) } // Lưu data chuẩn để đẩy lên DB
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
@@ -71,20 +73,27 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
             isAiScanning = true
             scope.launch(Dispatchers.IO) {
                 try {
-                    // CẤU HÌNH CHUẨN ĐỂ TRÁNH LỖI NOT_FOUND VÀ QUOTA
                     val generativeModel = GenerativeModel(
-                        modelName = "gemini-2.5-flash", // Đổi tên ở đây
+                        modelName = "gemini-2.5-flash",
                         apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8",
                         generationConfig = generationConfig {
-                            temperature = 0.4f // Giảm độ ngẫu nhiên để kết quả chính xác hơn
-                            topK = 32
-                            topP = 1f
+                            temperature = 0.2f // Giảm sáng tạo để kết quả JSON chính xác hơn
+                            responseMimeType = "application/json" // ÉP AI PHẢI TRẢ VỀ ĐỊNH DẠNG JSON
                         }
                     )
 
-                    val prompt = "What clothing item is this? Analyze this image. " +
-                            "Return ONLY the brand and product name (e.g., Uniqlo Blue Denim Jacket). " +
-                            "If no brand, describe it briefly. NO EXPLANATION."
+                    // Câu lệnh chi tiết, bắt buộc trả về đúng cấu trúc bạn cần
+                    val prompt = """
+                        Analyze this clothing item in the image. 
+                        Return strictly valid JSON with the following schema:
+                        {
+                            "name": "Brief brand and item name (e.g. Uniqlo Blue Shirt)",
+                            "category": "Choose one: Top, Bottom, Shoes, Outerwear, Accessories",
+                            "main_color": "Dominant color (e.g. Blue, Black, White)",
+                            "seasons": ["Spring", "Summer", "Autumn", "Winter"],
+                            "occasions": ["Casual", "Work", "Party", "Sport", "Formal"]
+                        }
+                    """.trimIndent()
 
                     val response = generativeModel.generateContent(
                         content {
@@ -92,14 +101,39 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                             text(prompt)
                         }
                     )
-                    aiScanResult = response.text
-                } catch (e: Exception) {
-                    // Xử lý lỗi quota nếu bấm quá nhanh
-                    if (e.message?.contains("429") == true) {
-                        aiScanResult = "Rate limit reached. Please wait 60s."
+
+                    // Ép kiểu chuỗi trả về thành JSONObject
+                    val jsonString = response.text ?: "{}"
+                    val json = JSONObject(jsonString)
+
+                    // Lưu lại json vào biến State để dùng khi bấm nút "Add to Closet"
+                    rawScannedJson = json
+
+                    // Trích xuất dữ liệu để hiển thị đẹp mắt lên UI
+                    // Trích xuất dữ liệu cơ bản
+                    val itemName = json.optString("name", "Unknown Item")
+                    val itemCategory = json.optString("category", "N/A")
+                    val itemColor = json.optString("main_color", "N/A")
+                    val occasionsArray = json.optJSONArray("occasions")
+                    val itemOccasions = if (occasionsArray != null && occasionsArray.length() > 0) {
+                        List(occasionsArray.length()) { occasionsArray.getString(it) }.joinToString(", ")
                     } else {
-                        aiScanResult = "AI Scan Error!: ${e.localizedMessage}"
+                        "N/A"
                     }
+
+                    val seasonsArray = json.optJSONArray("seasons")
+                    val itemSeasons = if (seasonsArray != null && seasonsArray.length() > 0) {
+                        List(seasonsArray.length()) { seasonsArray.getString(it) }.joinToString(", ")
+                    } else {
+                        "N/A"
+                    }
+
+                    // Đưa toàn bộ lên giao diện hiển thị
+                    aiScanResultText = "$itemName\n• Category: $itemCategory\n• Color: $itemColor\n• Seasons: $itemSeasons\n• Occasions: $itemOccasions"
+
+                } catch (e: Exception) {
+                    aiScanResultText = "AI Scan Error: ${e.localizedMessage}"
+                    rawScannedJson = null
                 } finally {
                     isAiScanning = false
                 }
@@ -107,68 +141,32 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 8.dp,
-                    modifier = Modifier
-                        .height(84.dp)
-                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    modifier = Modifier.height(84.dp).clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 ) {
                     val items = listOf("Home", "Closet", "Stylist", "Profile")
-                    val icons = listOf(
-                        Icons.Outlined.Home,
-                        Icons.Outlined.Checkroom,
-                        Icons.Outlined.AutoAwesome,
-                        Icons.Outlined.Person
-                    )
-                    val selectedIcons = listOf(
-                        Icons.Filled.Home,
-                        Icons.Filled.Checkroom,
-                        Icons.Filled.AutoAwesome,
-                        Icons.Filled.Person
-                    )
+                    val icons = listOf(Icons.Outlined.Home, Icons.Outlined.Checkroom, Icons.Outlined.AutoAwesome, Icons.Outlined.Person)
+                    val selectedIcons = listOf(Icons.Filled.Home, Icons.Filled.Checkroom, Icons.Filled.AutoAwesome, Icons.Filled.Person)
 
                     items.forEachIndexed { index, item ->
                         NavigationBarItem(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
-                            icon = {
-                                Icon(
-                                    imageVector = if (selectedTab == index) selectedIcons[index] else icons[index],
-                                    contentDescription = item,
-                                    modifier = Modifier.size(if (selectedTab == index) 28.dp else 24.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    text = item,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
+                            icon = { Icon(if (selectedTab == index) selectedIcons[index] else icons[index], contentDescription = item, modifier = Modifier.size(if (selectedTab == index) 28.dp else 24.dp)) },
+                            label = { Text(item, fontSize = 12.sp, fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal) },
+                            colors = NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant, selectedTextColor = MaterialTheme.colorScheme.primary, unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant, indicatorColor = MaterialTheme.colorScheme.secondaryContainer)
                         )
                     }
                 }
             }
         ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                 when (selectedTab) {
                     0 -> DashboardContent()
                     1 -> ClosetScreen()
@@ -179,47 +177,93 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
         }
 
         // --- HỘP THOẠI HIỂN THỊ KẾT QUẢ AI SCAN ---
-        if (isAiScanning || aiScanResult != null) {
+        if (isAiScanning || aiScanResultText != null) {
             AlertDialog(
                 onDismissRequest = {
-                    if (!isAiScanning) aiScanResult = null
+                    if (!isAiScanning) {
+                        aiScanResultText = null
+                        rawScannedJson = null
+                    }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
                 title = {
-                    Text(
-                        text = if (isAiScanning) "AI is analyzing..." else "✨ AI Stylist Result",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = "AI"
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = if (isAiScanning) "AI is analyzing..." else "AI Stylist Result",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 },
                 text = {
                     if (isAiScanning) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                "Identifying clothing...",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Spacer(modifier = Modifier.padding(top = 20.dp))
+                            // Lottie 1
+                            val comp1 by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.ai_loading))
+                            val prog1 by animateLottieCompositionAsState(comp1, iterations = LottieConstants.IterateForever)
+                            if (comp1 != null) LottieAnimation(comp1, { prog1 }, modifier = Modifier.size(120.dp))
+
+                            // Lottie 2
+                            val comp2 by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.loading3))
+                            val prog2 by animateLottieCompositionAsState(comp2, iterations = LottieConstants.IterateForever)
+                            if (comp2 != null) LottieAnimation(comp2, { prog2 }, modifier = Modifier.size(120.dp))
                         }
                     } else {
                         Text(
-                            text = aiScanResult ?: "No results found",
-                            fontSize = 18.sp,
+                            text = aiScanResultText ?: "No results found",
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 24.sp
                         )
                     }
                 },
                 confirmButton = {
-                    if (!isAiScanning) {
+                    if (!isAiScanning && rawScannedJson != null) {
                         Button(
                             onClick = {
-                                // TODO: Nối logic lưu vào ClosetScreen ở đây
-                                aiScanResult = null
+                                // 1. BÓC TÁCH DỮ LIỆU RA TỪ JSON
+                                val json = rawScannedJson!!
+
+                                // Chuyển đổi mảng JSON thành Danh sách Kotlin (List<String>)
+                                val seasonsArray = json.optJSONArray("seasons")
+                                val seasonsList = List(seasonsArray?.length() ?: 0) { seasonsArray?.getString(it) ?: "" }
+
+                                val occasionsArray = json.optJSONArray("occasions")
+                                val occasionsList = List(occasionsArray?.length() ?: 0) { occasionsArray?.getString(it) ?: "" }
+
+                                // 2. TẠO ĐỐI TƯỢNG CLOTHING ITEM CỦA BẠN SẴN SÀNG LƯU VÀO DB
+                                /*
+                                val newClothingItem = ClothingItem(
+                                    userId = "MÃ_USER_CỦA_BẠN_TỪ_SUPABASE",
+                                    imageUrl = "LINK_ẢNH_SAU_KHI_UPLOAD",
+                                    category = json.optString("category", "Unknown"),
+                                    mainColor = json.optString("main_color", "Unknown"),
+                                    seasons = seasonsList,
+                                    occasions = occasionsList
+                                )
+
+                                // TODO: Gọi hàm Supabase insert object newClothingItem vào database tại đây!
+                                */
+
+                                // 3. Dọn dẹp Hộp thoại
+                                aiScanResultText = null
+                                rawScannedJson = null
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
@@ -229,7 +273,10 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                 },
                 dismissButton = {
                     if (!isAiScanning) {
-                        TextButton(onClick = { aiScanResult = null }) {
+                        TextButton(onClick = {
+                            aiScanResultText = null
+                            rawScannedJson = null
+                        }) {
                             Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -245,19 +292,9 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                 .padding(bottom = 110.dp, end = 16.dp)
                 .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
                 .shadow(8.dp, CircleShape)
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.secondary,
-                            MaterialTheme.colorScheme.primary
-                        )
-                    ),
-                    shape = CircleShape
-                )
+                .background(brush = Brush.horizontalGradient(colors = listOf(MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.primary)), shape = CircleShape)
                 .clip(CircleShape)
-                .clickable {
-                    cameraLauncher.launch(null) // GỌI CAMERA
-                }
+                .clickable { cameraLauncher.launch(null) }
                 .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
@@ -267,15 +304,9 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                 }
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
-            if (isDarkMode == false) {
-                Icon(Icons.Filled.CameraAlt, "AI Scan", tint = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("AI Scan", fontWeight = FontWeight.Bold, color = Color.White)
-            } else {
-                Icon(Icons.Filled.CameraAlt, "AI Scan", tint = Color.DarkGray)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("AI Scan", fontWeight = FontWeight.Bold, color = Color.DarkGray)
-            }
+            Icon(Icons.Filled.CameraAlt, "AI Scan", tint = if (isDarkMode) Color.DarkGray else Color.White)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("AI Scan", fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.DarkGray else Color.White)
         }
     }
 }

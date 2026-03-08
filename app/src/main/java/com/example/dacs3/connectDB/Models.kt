@@ -44,6 +44,7 @@ data class ClothingItem(
     val id: String? = null,
     @SerialName("user_id") val userId: String,
     @SerialName("image_url") val imageUrl: String,
+    val name: String,
     val category: String, // Top, Bottom, Shoes...
     @SerialName("main_color") val mainColor: String? = null,
     val seasons: List<String>? = null,

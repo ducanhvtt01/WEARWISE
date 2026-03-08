@@ -8,9 +8,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Checkroom
@@ -28,17 +31,29 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerialName
 
-data class WardrobeItem(val id: Int, var name: String, var brand: String, val colorTag: Color)
+// --- 1. DATA CLASS ---
+data class ClothingItem(
+    val id: String? = null,
+    @SerialName("user_id") val userId: String = "",
+    @SerialName("image_url") val imageUrl: String = "",
+    var name: String = "",
+    val category: String = "Top",
+    @SerialName("main_color") val mainColor: String? = null,
+    val seasons: List<String>? = null,
+    val occasions: List<String>? = null
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClosetScreen() {
     var selectedCategory by remember { mutableStateOf("All") }
-    val categories = listOf("All", "Tops", "Bottoms", "Outerwear", "Shoes", "Accs")
+    val categories = listOf("All", "Top", "Bottom", "Outerwear", "Shoes", "Accessories")
 
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -48,7 +63,7 @@ fun ClosetScreen() {
 
     // --- STATE CHO BOTTOM SHEET ---
     var showItemSheet by remember { mutableStateOf(false) }
-    var selectedItemToEdit by remember { mutableStateOf<WardrobeItem?>(null) }
+    var selectedItemToEdit by remember { mutableStateOf<ClothingItem?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -63,26 +78,61 @@ fun ClosetScreen() {
         }
     }
 
+    // --- DỮ LIỆU MẪU ---
     val itemsList = remember {
         mutableStateListOf(
-            WardrobeItem(1, "White Oxford Shirt", "Zara", Color(0xFFF5F5F5)),
-            WardrobeItem(2, "Navy Tailored Trousers", "Mango", Color(0xFF1A237E)),
-            WardrobeItem(3, "Beige Trench Coat", "Burberry", Color(0xFFD7CCC8)),
-            WardrobeItem(4, "Classic Denim Jacket", "Levi's", Color(0xFF64B5F6)),
-            WardrobeItem(5, "Brown Leather Loafers", "Clarks", Color(0xFF8D6E63)),
-            WardrobeItem(6, "Black Turtleneck", "Uniqlo", Color(0xFF424242))
+            ClothingItem(
+                id = "1",
+                name = "Zara White Oxford Shirt",
+                category = "Top",
+                mainColor = "White",
+                seasons = listOf("Summer", "Spring"),
+                occasions = listOf("Casual", "Work")
+            ),
+            ClothingItem(
+                id = "2",
+                name = "Mango Tailored Trousers",
+                category = "Bottom",
+                mainColor = "Navy",
+                seasons = listOf("All"),
+                occasions = listOf("Work", "Formal")
+            ),
+            ClothingItem(
+                id = "3",
+                name = "Beige Trench Coat",
+                category = "Outerwear",
+                mainColor = "Beige",
+                seasons = listOf("Autumn", "Winter"),
+                occasions = listOf("Casual")
+            ),
+            ClothingItem(
+                id = "4",
+                name = "Brown Leather Loafers",
+                category = "Shoes",
+                mainColor = "Brown",
+                seasons = listOf("All"),
+                occasions = listOf("Casual", "Party")
+            ),
+            ClothingItem(
+                id = "5",
+                name = "Local Brand T-Shirt",
+                category = "Top",
+                mainColor = "Black",
+                seasons = listOf("Summer"),
+                occasions = listOf("Casual")
+            ),
         )
     }
 
     val filteredItems = itemsList.filter {
-        (selectedCategory == "All" || it.name.contains(selectedCategory, ignoreCase = true)) &&
-                (it.name.contains(searchQuery, ignoreCase = true) || it.brand.contains(
+        (selectedCategory == "All" || it.category.equals(selectedCategory, ignoreCase = true)) &&
+                (it.name.contains(searchQuery, ignoreCase = true) || it.mainColor?.contains(
                     searchQuery,
                     ignoreCase = true
-                ))
+                ) == true)
     }
 
-    // --- BOTTOM SHEET CHI TIẾT ITEM ---
+    // --- BOTTOM SHEET HIỂN THỊ CHI TIẾT ĐỂ SỬA ---
     if (showItemSheet && selectedItemToEdit != null) {
         ModalBottomSheet(
             onDismissRequest = { showItemSheet = false },
@@ -91,38 +141,33 @@ fun ClosetScreen() {
         ) {
             ItemDetailSheetContent(
                 item = selectedItemToEdit!!,
-                onSave = { updatedName, updatedBrand ->
-                    val index = itemsList.indexOfFirst { it.id == selectedItemToEdit!!.id }
+                onSave = { updatedItem ->
+                    val index = itemsList.indexOfFirst { it.id == updatedItem.id }
                     if (index != -1) {
-                        itemsList[index] =
-                            itemsList[index].copy(name = updatedName, brand = updatedBrand)
+                        itemsList[index] = updatedItem
                     }
                     showItemSheet = false
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Đã cập nhật ${updatedName}!")
-                    }
+                    scope.launch { snackbarHostState.showSnackbar("Đã cập nhật ${updatedItem.name}!") }
                 },
                 onStyleWithAI = {
                     showItemSheet = false
                 },
-                // --- XỬ LÝ LOGIC XÓA ---
                 onDelete = {
                     val itemToRemove = selectedItemToEdit!!
                     val index = itemsList.indexOf(itemToRemove)
                     if (index != -1) {
                         itemsList.removeAt(index)
                         showItemSheet = false
-
-                        // Hiện Snackbar để Hoàn tác
                         scope.launch {
                             val result = snackbarHostState.showSnackbar(
-                                message = "Đã xóa ${itemToRemove.name}",
-                                actionLabel = "Hoàn tác",
+                                "Đã xóa ${itemToRemove.name}",
+                                "Hoàn tác",
                                 duration = SnackbarDuration.Short
                             )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                itemsList.add(index, itemToRemove)
-                            }
+                            if (result == SnackbarResult.ActionPerformed) itemsList.add(
+                                index,
+                                itemToRemove
+                            )
                         }
                     }
                 }
@@ -153,20 +198,19 @@ fun ClosetScreen() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.DryCleaning,
-                            contentDescription = "",
+                            null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(35.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Closet",
+                            "Closet",
                             fontSize = 35.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.primary,
                             letterSpacing = (-0.5).sp
                         )
                     }
-
                     IconButton(
                         onClick = { isSearching = true },
                         modifier = Modifier.background(
@@ -176,7 +220,7 @@ fun ClosetScreen() {
                     ) {
                         Icon(
                             Icons.Filled.Search,
-                            contentDescription = "Search",
+                            "Search",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(30.dp)
                         )
@@ -213,31 +257,26 @@ fun ClosetScreen() {
                                 ) {
                                     Icon(
                                         Icons.Filled.Search,
-                                        contentDescription = null,
+                                        null,
                                         tint = MaterialTheme.colorScheme.secondary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(modifier = Modifier.weight(1f)) {
-                                        if (searchQuery.isEmpty()) {
-                                            Text(
-                                                "Search clothes...",
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontSize = 14.sp
-                                            )
-                                        }
+                                        if (searchQuery.isEmpty()) Text(
+                                            "Search clothes...",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 14.sp
+                                        )
                                         innerTextField()
                                     }
-                                    IconButton(
-                                        onClick = {
-                                            if (searchQuery.isEmpty()) isSearching =
-                                                false else searchQuery = ""
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
+                                    IconButton(onClick = {
+                                        if (searchQuery.isEmpty()) isSearching =
+                                            false else searchQuery = ""
+                                    }, modifier = Modifier.size(24.dp)) {
                                         Icon(
                                             Icons.Filled.Close,
-                                            contentDescription = null,
+                                            null,
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -257,13 +296,12 @@ fun ClosetScreen() {
                 items(categories.size) { index ->
                     val category = categories[index]
                     val isSelected = selectedCategory == category
-
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedCategory = category },
                         label = {
                             Text(
-                                text = category,
+                                category,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
                         },
@@ -273,8 +311,7 @@ fun ClosetScreen() {
                             containerColor = MaterialTheme.colorScheme.surface,
                             labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = FilterChipDefaults.filterChipElevation(elevation = if (isSelected) 4.dp else 1.dp)
+                        shape = RoundedCornerShape(16.dp)
                     )
                 }
             }
@@ -306,7 +343,7 @@ fun ClosetScreen() {
                             ) {
                                 Icon(
                                     Icons.Filled.Add,
-                                    contentDescription = null,
+                                    null,
                                     tint = MaterialTheme.colorScheme.onPrimary
                                 )
                             }
@@ -320,27 +357,25 @@ fun ClosetScreen() {
                     }
                 }
 
-                items(items = filteredItems, key = { it.id }) { item ->
+                items(items = filteredItems, key = { it.id ?: "" }) { item ->
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { dismissValue ->
                             if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
                                 val index = itemsList.indexOf(item)
                                 itemsList.remove(item)
-
                                 scope.launch {
                                     val result = snackbarHostState.showSnackbar(
-                                        message = "Đã xóa ${item.name}",
-                                        actionLabel = "Hoàn tác",
+                                        "Đã xóa ${item.name}",
+                                        "Hoàn tác",
                                         duration = SnackbarDuration.Short
                                     )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        itemsList.add(index, item)
-                                    }
+                                    if (result == SnackbarResult.ActionPerformed) itemsList.add(
+                                        index,
+                                        item
+                                    )
                                 }
                                 true
-                            } else {
-                                false
-                            }
+                            } else false
                         }
                     )
 
@@ -348,12 +383,7 @@ fun ClosetScreen() {
                         state = dismissState,
                         enableDismissFromStartToEnd = false,
                         backgroundContent = {
-                            val color by animateColorAsState(
-                                if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart)
-                                    MaterialTheme.colorScheme.error
-                                else
-                                    Color.Transparent
-                            )
+                            val color by animateColorAsState(if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart) MaterialTheme.colorScheme.error else Color.Transparent)
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -364,7 +394,7 @@ fun ClosetScreen() {
                             ) {
                                 Icon(
                                     Icons.Filled.Delete,
-                                    contentDescription = "Delete",
+                                    "Delete",
                                     tint = Color.White,
                                     modifier = Modifier.size(28.dp)
                                 )
@@ -380,7 +410,6 @@ fun ClosetScreen() {
                 }
             }
         }
-
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
@@ -390,8 +419,9 @@ fun ClosetScreen() {
     }
 }
 
+// --- THẺ HIỂN THỊ QUẦN ÁO BÊN NGOÀI ---
 @Composable
-fun ClosetItemCard(item: WardrobeItem, onClick: () -> Unit) {
+fun ClosetItemCard(item: ClothingItem, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -401,6 +431,7 @@ fun ClosetItemCard(item: WardrobeItem, onClick: () -> Unit) {
                 RoundedCornerShape(20.dp),
                 spotColor = MaterialTheme.colorScheme.surfaceVariant
             )
+            .clip(RoundedCornerShape(20.dp))
             .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -416,67 +447,94 @@ fun ClosetItemCard(item: WardrobeItem, onClick: () -> Unit) {
             ) {
                 Icon(
                     Icons.Outlined.Checkroom,
-                    contentDescription = null,
+                    null,
                     modifier = Modifier.size(40.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .size(16.dp)
-                        .background(item.colorTag, CircleShape)
-                        .shadow(1.dp, CircleShape)
-                )
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                item.brand,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
-            )
             Text(
                 item.name,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1
+                maxLines = 2
             )
         }
     }
 }
 
-// --- GIAO DIỆN BOTTOM SHEET CHI TIẾT ---
+// --- COMPONENT CUSTOM CHIP (KHẮC PHỤC HOÀN TOÀN LỖI RIPPLE) ---
+@Composable
+fun CustomChip(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(
+                    alpha = 0.5f
+                )
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 14.sp
+        )
+    }
+}
+
+// --- GIAO DIỆN BOTTOM SHEET CHI TIẾT ĐÃ FIX LỖI ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemDetailSheetContent(
-    item: WardrobeItem,
-    onSave: (String, String) -> Unit,
+    item: ClothingItem,
+    onSave: (ClothingItem) -> Unit,
     onStyleWithAI: () -> Unit,
     onDelete: () -> Unit
 ) {
     var editName by remember { mutableStateOf(item.name) }
-    var editBrand by remember { mutableStateOf(item.brand) }
+    var editCategory by remember { mutableStateOf(item.category) }
+    var editColor by remember { mutableStateOf(item.mainColor ?: "") }
+
+    var editSeasons by remember { mutableStateOf(item.seasons?.toSet() ?: emptySet()) }
+    var editOccasions by remember { mutableStateOf(item.occasions?.toSet() ?: emptySet()) }
+
+    val suggestedCategories = listOf("Top", "Bottom", "Outerwear", "Shoes", "Accessories")
+    val suggestedSeasons = listOf("Spring", "Summer", "Autumn", "Winter", "All")
+    val suggestedOccasions = listOf("Casual", "Work", "Party", "Sport", "Formal")
+
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 24.dp)
+            .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
         Box(
             modifier = Modifier
-                .size(120.dp)
+                .size(100.dp)
                 .clip(RoundedCornerShape(24.dp))
-                .background(item.colorTag.copy(alpha = 0.2f)),
+                .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 Icons.Outlined.Checkroom,
-                contentDescription = null,
-                modifier = Modifier.size(60.dp),
-                tint = item.colorTag
+                null,
+                modifier = Modifier.size(50.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
         }
 
@@ -487,28 +545,90 @@ fun ItemDetailSheetContent(
             onValueChange = { editName = it },
             label = { Text("Item Name") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                cursorColor = MaterialTheme.colorScheme.primary
-            )
+            shape = RoundedCornerShape(12.dp)
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "Category",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(suggestedCategories) { cat ->
+                    CustomChip(
+                        text = cat,
+                        isSelected = editCategory == cat,
+                        onClick = { editCategory = cat }
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
-            value = editBrand,
-            onValueChange = { editBrand = it },
-            label = { Text("Brand") },
+            value = editColor,
+            onValueChange = { editColor = it },
+            label = { Text("Main Color") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                cursorColor = MaterialTheme.colorScheme.primary
-            )
+            singleLine = true
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "Seasons",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(suggestedSeasons) { season ->
+                    val isSelected = editSeasons.contains(season)
+                    CustomChip(
+                        text = season,
+                        isSelected = isSelected,
+                        onClick = {
+                            editSeasons =
+                                if (isSelected) editSeasons - season else editSeasons + season
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "Occasions",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(suggestedOccasions) { occasion ->
+                    val isSelected = editOccasions.contains(occasion)
+                    CustomChip(
+                        text = occasion,
+                        isSelected = isSelected,
+                        onClick = {
+                            editOccasions =
+                                if (isSelected) editOccasions - occasion else editOccasions + occasion
+                        }
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -535,7 +655,7 @@ fun ItemDetailSheetContent(
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = "AI", tint = Color.White)
+                    Icon(Icons.Filled.AutoAwesome, null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "Style this with AI",
@@ -550,7 +670,16 @@ fun ItemDetailSheetContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedButton(
-            onClick = { onSave(editName, editBrand) },
+            onClick = {
+                val updatedItem = item.copy(
+                    name = editName,
+                    category = editCategory,
+                    mainColor = editColor,
+                    seasons = editSeasons.toList(),
+                    occasions = editOccasions.toList()
+                )
+                onSave(updatedItem)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp),
@@ -566,7 +695,6 @@ fun ItemDetailSheetContent(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // NÚT XÓA MỚI THÊM
         TextButton(
             onClick = onDelete,
             modifier = Modifier
@@ -574,11 +702,40 @@ fun ItemDetailSheetContent(
                 .height(54.dp),
             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
         ) {
-            Icon(Icons.Filled.Delete, contentDescription = "Delete")
+            Icon(Icons.Filled.Delete, "Delete")
             Spacer(modifier = Modifier.width(8.dp))
             Text("Delete Item", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+// --- HÀM PREVIEW CHO BOTTOM SHEET ---
+@Preview(showBackground = true, name = "Bottom Sheet Preview")
+@Composable
+fun PreviewItemDetailSheetContent() {
+    val mockItem = ClothingItem(
+        id = "preview1",
+        name = "Zara White Oxford Shirt",
+        category = "Top",
+        mainColor = "White",
+        seasons = listOf("Spring", "Summer"),
+        occasions = listOf("Casual", "Work")
+    )
+
+    MaterialTheme {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.background,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        ) {
+            ItemDetailSheetContent(
+                item = mockItem,
+                onSave = {},
+                onStyleWithAI = {},
+                onDelete = {}
+            )
+        }
     }
 }
