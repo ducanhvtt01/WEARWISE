@@ -5,6 +5,9 @@ import android.content.Context
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.gotrue.Auth
 import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.realtime.Realtime
+import io.github.jan.supabase.storage.Storage
 
 object SupabaseManager {
     lateinit var client: io.github.jan.supabase.SupabaseClient
@@ -20,6 +23,9 @@ object SupabaseManager {
                 sessionManager = SettingsSessionManager(context.applicationContext)
                 alwaysAutoRefresh = true
             }
+            install(Postgrest)
+            install(Storage)
+            install(Realtime)
         }
     }
 }

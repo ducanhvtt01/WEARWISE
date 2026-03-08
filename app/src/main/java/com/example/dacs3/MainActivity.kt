@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
+import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.connectDB.SupabaseManager
 import com.example.dacs3.connectDB.supabase
 import com.example.dacs3.dashboard.HomeUI
@@ -24,6 +25,7 @@ import com.example.dacs3.ui.theme.ThemeManager
 import com.example.dacs3.ui.theme.WearwiseTheme
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.parseSessionFromUrl
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -102,13 +104,11 @@ fun AppNavigation(
     isDarkMode: Boolean,
     onThemeChange: (Boolean) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         val session = supabase.auth.currentSessionOrNull()
         if (session != null) {
-            // Nếu đã có session, bỏ qua màn hình login và đi thẳng vào Home
-            navController.navigate("home") {
-                popUpTo("login") { inclusive = true }
-            }
+            checkProfileAndNavigate(session.user?.id, navController)
         }
     }
     NavHost(
@@ -118,8 +118,9 @@ fun AppNavigation(
         composable("login") {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate("home") {
-                        popUpTo("login") { inclusive = true }
+                    val session1 = supabase.auth.currentSessionOrNull()
+                    if (session1 != null) scope.launch {
+                        checkProfileAndNavigate(session1.user?.id, navController)
                     }
                 }
             )
@@ -143,6 +144,25 @@ fun AppNavigation(
 
         composable("home") {
             HomeUI(isDarkMode = isDarkMode, onThemeChange = onThemeChange)
+        }
+    }
+}
+
+suspend fun checkProfileAndNavigate(userId: String?, navController: NavHostController) {
+    if (userId == null) return
+    try {
+        val profile = supabase.from("profiles").select {
+            filter { eq("id", userId) }
+        }.decodeSingleOrNull<Profile>()
+
+        val destination = if (profile != null && !profile.gender.isNullOrBlank()) "home" else "survey"
+
+        navController.navigate(destination) {
+            popUpTo("login") { inclusive = true }
+        }
+    } catch (e: Exception) {
+        navController.navigate("survey") {
+            popUpTo("login") { inclusive = true }
         }
     }
 }

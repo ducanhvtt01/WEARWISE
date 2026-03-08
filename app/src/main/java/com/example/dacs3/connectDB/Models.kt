@@ -10,11 +10,32 @@ data class Profile(
     val username: String? = null,
     @SerialName("full_name") val fullName: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null,
-    val gender: String? = null,
-    @SerialName("height_cm") val height: Int? = null,
-    @SerialName("weight_kg") val weight: Int? = null,
-    @SerialName("body_shape") val bodyShape: String? = null,
-    @SerialName("favorite_styles") val favoriteStyles: List<String>? = null
+    val gender: String,
+    @SerialName("height_cm") val heightCm: Float,
+    @SerialName("weight_kg") val weightKg: Float,
+    @SerialName("body_shape") val bodyShape: String,
+    @SerialName("skin_tone") val skinTone: String,
+    @SerialName("favorite_styles") val favoriteStyles: List<String>,
+    @SerialName("favorite_colors") val favoriteColors: List<String>,
+    @SerialName("top_size") val topSize: String,
+    @SerialName("bottom_size") val bottomSize: String,
+    @SerialName("shoe_size_eu") val shoeSizeEu: Int,
+    @SerialName("updated_at") val updatedAt: String
+)
+
+@Serializable
+data class ProfileUpdate(
+    val gender: String,
+    @SerialName("height_cm") val heightCm: Float,
+    @SerialName("weight_kg") val weightKg: Float,
+    @SerialName("body_shape") val bodyShape: String,
+    @SerialName("skin_tone") val skinTone: String,
+    @SerialName("favorite_styles") val favoriteStyles: List<String>,
+    @SerialName("favorite_colors") val favoriteColors: List<String>,
+    @SerialName("top_size") val topSize: String,
+    @SerialName("bottom_size") val bottomSize: String,
+    @SerialName("shoe_size_eu") val shoeSizeEu: Int,
+    @SerialName("updated_at") val updatedAt: String // Supabase sẽ tự hiểu định dạng ISO
 )
 
 // 2. Món đồ cá nhân (Dùng cho ML Kit quét)

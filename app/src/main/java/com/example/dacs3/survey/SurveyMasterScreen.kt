@@ -5,12 +5,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.*
+import com.example.dacs3.connectDB.supabase
+import io.github.jan.supabase.gotrue.auth
 
 //File này để gọi SurveyLayout cố định và NavHost để làm hiệu ứng trượt
 @Composable
 fun SurveyMasterScreen(onFinish: () -> Unit) {
     val surveyViewModel: SurveyViewModel = viewModel()
     val childNavController = rememberNavController()
+    val userId = remember { supabase.auth.currentUserOrNull()?.id ?: ""}
 
     val navBackStackEntry by childNavController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -20,6 +23,12 @@ fun SurveyMasterScreen(onFinish: () -> Unit) {
         else -> 1
     }
 
+    LaunchedEffect(surveyViewModel.updateSuccess) {
+        if (surveyViewModel.updateSuccess) {
+            onFinish()
+        }
+    }
+
     SurveyLayout(
         currentStep = currentStep,
         onBack = if (currentStep > 1) { { childNavController.popBackStack() } } else null,
@@ -27,7 +36,9 @@ fun SurveyMasterScreen(onFinish: () -> Unit) {
             when (currentStep) {
                 1 -> childNavController.navigate("step2")
                 2 -> childNavController.navigate("step3")
-                3 -> onFinish()
+                3 -> {
+                    userId.let { surveyViewModel.updateProfile(it) }
+                }
             }
         }
     ) {
