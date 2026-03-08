@@ -22,39 +22,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.dacs3.connectDB.DashboardViewModel
 import kotlinx.serialization.SerialName
+import com.example.dacs3.connectDB.Profile
+import com.example.dacs3.connectDB.supabase
+import io.github.jan.supabase.gotrue.auth
 
 // Giữ nguyên Data class của bạn
-data class Profile(
-    val id: String,
-    val username: String? = null,
-    @SerialName("full_name") val fullName: String? = null,
-    @SerialName("avatar_url") val avatarUrl: String? = null,
-    val gender: String? = null,
-    @SerialName("height_cm") val height: Int? = null,
-    @SerialName("weight_kg") val weight: Int? = null,
-    @SerialName("body_shape") val bodyShape: String? = null,
-    @SerialName("favorite_styles") val favoriteStyles: List<String>? = null
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
+fun ProfileScreen(
+    isDarkMode: Boolean,
+    onThemeChange: (Boolean) -> Unit,
+    viewModel: DashboardViewModel = viewModel()
+) {
     var notificationsEnabled by remember { mutableStateOf(true) }
 
     // 1. TẠO TRẠNG THÁI (STATE) ĐỂ LƯU THÔNG TIN PROFILE VÀ QUẢN LÝ BOTTOM SHEET
-    var showMeasurementSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Biến tạm để giả lập dữ liệu (Sau này bạn sẽ lấy từ Supabase ViewModel về đây)
-    var userProfile by remember {
-        mutableStateOf(
-            Profile(id = "1", height = 175, weight = 70, bodyShape = "Rectangle")
-        )
+    // Lấy userId từ Supabase Auth
+    val userId = remember { supabase.auth.currentUserOrNull()?.id ?: "" }
+
+    // Tự động load dữ liệu khi vào màn hình
+    LaunchedEffect(userId) {
+        if (userId.isNotEmpty()) viewModel.getProfile(userId)
     }
 
+    val userProfile = viewModel.userProfile
+    var showMeasurementSheet by remember { mutableStateOf(false) }
+
     // --- HIỂN THỊ BOTTOM SHEET ---
-    if (showMeasurementSheet) {
+    if (showMeasurementSheet && userProfile != null) {
         ModalBottomSheet(
             onDismissRequest = { showMeasurementSheet = false },
             sheetState = sheetState,
@@ -62,15 +62,11 @@ fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
         ) {
             MeasurementEditSheetContent(
                 currentProfile = userProfile,
-                onSave = { updatedHeight, updatedWeight, updatedShape ->
-                    // Cập nhật lại state của Profile, UI sẽ tự động đổi text
-                    userProfile = userProfile.copy(
-                        height = updatedHeight,
-                        weight = updatedWeight,
-                        bodyShape = updatedShape
-                    )
+                onSave = { h, w, s ->
+                    if (h != null && w != null && s != null) {
+                        viewModel.updateMeasurements(userId, h, w, s)
+                    }
                     showMeasurementSheet = false
-                    // TODO: Gọi hàm update dữ liệu lên Supabase ở đây
                 },
                 onCancel = { showMeasurementSheet = false }
             )
@@ -156,14 +152,14 @@ fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            "Alexander",
+                            text = userProfile?.fullName ?: "Alex",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            "alexander@style.com",
+                            supabase.auth.currentUserOrNull()?.email ?: "alex@gmail.com",
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -193,8 +189,10 @@ fun ProfileScreen(isDarkMode: Boolean, onThemeChange: (Boolean) -> Unit) {
             SettingRow(
                 icon = Icons.Outlined.Straighten,
                 title = "My Measurements",
-                subtitle = "${userProfile.height ?: "--"}cm, ${userProfile.weight ?: "--"}kg, ${userProfile.bodyShape ?: "Unknown"}",
-                onClick = { showMeasurementSheet = true } // <-- Quan trọng
+                subtitle = if (userProfile != null)
+                    "${userProfile.heightCm.toInt()}cm, ${userProfile.weightKg.toInt()}kg, ${userProfile.bodyShape}"
+                else "Loading...",
+                onClick = { showMeasurementSheet = true }
             )
             SettingRow(
                 icon = Icons.Outlined.Style,
@@ -269,8 +267,8 @@ fun MeasurementEditSheetContent(
     onSave: (Int?, Int?, String?) -> Unit,
     onCancel: () -> Unit
 ) {
-    var heightInput by remember { mutableStateOf(currentProfile.height?.toString() ?: "") }
-    var weightInput by remember { mutableStateOf(currentProfile.weight?.toString() ?: "") }
+    var heightInput by remember { mutableStateOf(currentProfile.heightCm?.toString() ?: "") }
+    var weightInput by remember { mutableStateOf(currentProfile.weightKg?.toString() ?: "") }
     var selectedShape by remember { mutableStateOf(currentProfile.bodyShape ?: "Rectangle") }
 
     val bodyShapes = listOf("Rectangle", "Triangle", "Hourglass", "Inverted Triangle", "Oval")
