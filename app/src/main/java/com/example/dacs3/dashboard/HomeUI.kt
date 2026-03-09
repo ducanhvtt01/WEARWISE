@@ -55,7 +55,7 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
+fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}, onLogoutSuccess: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -171,7 +171,7 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}) {
                     0 -> DashboardContent()
                     1 -> ClosetScreen()
                     2 -> StylistScreen()
-                    3 -> ProfileScreen(isDarkMode = isDarkMode, onThemeChange = onThemeChange)
+                    3 -> ProfileScreen(isDarkMode = isDarkMode, onThemeChange = onThemeChange, onLogoutSuccess = onLogoutSuccess)
                 }
             }
         }

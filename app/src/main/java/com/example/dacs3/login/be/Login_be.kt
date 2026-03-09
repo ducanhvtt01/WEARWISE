@@ -47,19 +47,3 @@ public suspend fun logincheck(emailUser: String, passUser: String): LoginResult 
         }
     }
 }
-
-/**
- * Hàm kiểm tra xem người dùng có đang đăng nhập hay không.
- * Trả về true nếu có session hợp lệ, ngược lại trả về false.
- */
-public suspend fun isUserLoggedIn(): Boolean {
-    return withContext(Dispatchers.IO) {
-        try {
-            // Kiểm tra xem currentSession có tồn tại hay không
-            val session = supabase.auth.currentSessionOrNull()
-            session != null
-        } catch (e: Exception) {
-            false
-        }
-    }
-}

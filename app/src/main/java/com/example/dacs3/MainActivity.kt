@@ -143,7 +143,15 @@ fun AppNavigation(
         }
 
         composable("home") {
-            HomeUI(isDarkMode = isDarkMode, onThemeChange = onThemeChange)
+            HomeUI(
+                isDarkMode = isDarkMode,
+                onThemeChange = onThemeChange,
+                onLogoutSuccess = {
+                    navController.navigate("login") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                }
+            )
         }
     }
 }

@@ -28,6 +28,7 @@ import kotlinx.serialization.SerialName
 import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.connectDB.supabase
 import io.github.jan.supabase.gotrue.auth
+import kotlinx.coroutines.launch
 
 // Giữ nguyên Data class của bạn
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,7 +36,8 @@ import io.github.jan.supabase.gotrue.auth
 fun ProfileScreen(
     isDarkMode: Boolean,
     onThemeChange: (Boolean) -> Unit,
-    viewModel: DashboardViewModel = viewModel()
+    viewModel: DashboardViewModel = viewModel(),
+    onLogoutSuccess: () -> Unit
 ) {
     var notificationsEnabled by remember { mutableStateOf(true) }
 
@@ -44,6 +46,7 @@ fun ProfileScreen(
 
     // Lấy userId từ Supabase Auth
     val userId = remember { supabase.auth.currentUserOrNull()?.id ?: "" }
+    val scope = rememberCoroutineScope()
 
     // Tự động load dữ liệu khi vào màn hình
     LaunchedEffect(userId) {
@@ -238,7 +241,12 @@ fun ProfileScreen(
         // --- LOGOUT BUTTON ---
         item {
             OutlinedButton(
-                onClick = { },
+                onClick = {
+                    scope.launch {
+                        supabase.auth.signOut()
+                        onLogoutSuccess()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
