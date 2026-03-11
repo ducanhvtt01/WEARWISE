@@ -6,8 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import java.io.ByteArrayOutputStream
 
 class DashboardViewModel : ViewModel() {
     var userProfile by mutableStateOf<Profile?>(null)
@@ -21,6 +23,50 @@ class DashboardViewModel : ViewModel() {
                     .select { filter { eq("id", userId) } }
                     .decodeSingle<Profile>()
                 userProfile = profile
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun uploadAndSaveClothes(
+        bitmap: android.graphics.Bitmap,
+        clothingItem: ClothingItem,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                // 1. Chuyển Bitmap thành ByteArray
+                val baos = ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos)
+                val imageBytes = baos.toByteArray()
+
+                // 2. Tạo tên file duy nhất (vd: clothes_123456789.jpg)
+                val fileName = "clothes_${System.currentTimeMillis()}.jpg"
+
+                // 3. Upload lên bucket có tên là "clothing_images"
+                val bucket = supabase.storage.from("clothing_images")
+                bucket.upload(fileName, imageBytes)
+
+                // 4. Lấy Public URL của ảnh vừa upload
+                val publicUrl = bucket.publicUrl(fileName)
+
+                // 5. Cập nhật URL vào object và insert vào Database
+                val finalItem = clothingItem.copy(imageUrl = publicUrl)
+                supabase.from("clothes").insert(finalItem)
+
+                onSuccess()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun addClothing(item: ClothingItem, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                supabase.from("clothes").insert(item)
+                onSuccess()
             } catch (e: Exception) {
                 e.printStackTrace()
             }

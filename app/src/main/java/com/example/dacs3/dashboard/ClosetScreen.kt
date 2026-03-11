@@ -1,6 +1,7 @@
 package com.example.dacs3.dashboard
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,20 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dacs3.connectDB.ClothingItem
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
-
-// --- 1. DATA CLASS ---
-data class ClothingItem(
-    val id: String? = null,
-    @SerialName("user_id") val userId: String = "",
-    @SerialName("image_url") val imageUrl: String = "",
-    var name: String = "",
-    val category: String = "Top",
-    @SerialName("main_color") val mainColor: String? = null,
-    val seasons: List<String>? = null,
-    val occasions: List<String>? = null
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,11 +68,13 @@ fun ClosetScreen() {
         }
     }
 
-    // --- DỮ LIỆU MẪU ---
+    // --- DỮ LIỆU MẪU ĐÃ CẬP NHẬT ---
     val itemsList = remember {
         mutableStateListOf(
             ClothingItem(
                 id = "1",
+                userId = "user_01",
+                imageUrl = "https://example.com/white-shirt.jpg",
                 name = "Zara White Oxford Shirt",
                 category = "Top",
                 mainColor = "White",
@@ -91,6 +83,8 @@ fun ClosetScreen() {
             ),
             ClothingItem(
                 id = "2",
+                userId = "user_01",
+                imageUrl = "https://example.com/trousers.jpg",
                 name = "Mango Tailored Trousers",
                 category = "Bottom",
                 mainColor = "Navy",
@@ -99,6 +93,8 @@ fun ClosetScreen() {
             ),
             ClothingItem(
                 id = "3",
+                userId = "user_01",
+                imageUrl = "https://example.com/trench-coat.jpg",
                 name = "Beige Trench Coat",
                 category = "Outerwear",
                 mainColor = "Beige",
@@ -107,6 +103,8 @@ fun ClosetScreen() {
             ),
             ClothingItem(
                 id = "4",
+                userId = "user_01",
+                imageUrl = "https://example.com/loafers.jpg",
                 name = "Brown Leather Loafers",
                 category = "Shoes",
                 mainColor = "Brown",
@@ -115,12 +113,14 @@ fun ClosetScreen() {
             ),
             ClothingItem(
                 id = "5",
+                userId = "user_01",
+                imageUrl = "https://example.com/tshirt.jpg",
                 name = "Local Brand T-Shirt",
                 category = "Top",
                 mainColor = "Black",
                 seasons = listOf("Summer"),
                 occasions = listOf("Casual")
-            ),
+            )
         )
     }
 
@@ -685,7 +685,7 @@ fun ItemDetailSheetContent(
                 .height(54.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-            border = androidx.compose.foundation.BorderStroke(
+            border = BorderStroke(
                 1.dp,
                 MaterialTheme.colorScheme.primary
             )
@@ -712,30 +712,30 @@ fun ItemDetailSheetContent(
 }
 
 // --- HÀM PREVIEW CHO BOTTOM SHEET ---
-@Preview(showBackground = true, name = "Bottom Sheet Preview")
-@Composable
-fun PreviewItemDetailSheetContent() {
-    val mockItem = ClothingItem(
-        id = "preview1",
-        name = "Zara White Oxford Shirt",
-        category = "Top",
-        mainColor = "White",
-        seasons = listOf("Spring", "Summer"),
-        occasions = listOf("Casual", "Work")
-    )
-
-    MaterialTheme {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.background,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-        ) {
-            ItemDetailSheetContent(
-                item = mockItem,
-                onSave = {},
-                onStyleWithAI = {},
-                onDelete = {}
-            )
-        }
-    }
-}
+//@Preview(showBackground = true, name = "Bottom Sheet Preview")
+//@Composable
+//fun PreviewItemDetailSheetContent() {
+//    val mockItem = ClothingItem(
+//        id = "preview1",
+//        name = "Zara White Oxford Shirt",
+//        category = "Top",
+//        mainColor = "White",
+//        seasons = listOf("Spring", "Summer"),
+//        occasions = listOf("Casual", "Work")
+//    )
+//
+//    MaterialTheme {
+//        Surface(
+//            modifier = Modifier.fillMaxWidth(),
+//            color = MaterialTheme.colorScheme.background,
+//            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+//        ) {
+//            ItemDetailSheetContent(
+//                item = mockItem,
+//                onSave = {},
+//                onStyleWithAI = {},
+//                onDelete = {}
+//            )
+//        }
+//    }
+//}

@@ -30,14 +30,14 @@ import com.example.dacs3.connectDB.supabase
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.launch
 
-// Giữ nguyên Data class của bạn
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     isDarkMode: Boolean,
     onThemeChange: (Boolean) -> Unit,
     viewModel: DashboardViewModel = viewModel(),
-    onLogoutSuccess: () -> Unit
+    onLogoutSuccess: () -> Unit,
+    userProfile: Profile?
 ) {
     var notificationsEnabled by remember { mutableStateOf(true) }
 
@@ -49,11 +49,7 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
 
     // Tự động load dữ liệu khi vào màn hình
-    LaunchedEffect(userId) {
-        if (userId.isNotEmpty()) viewModel.getProfile(userId)
-    }
 
-    val userProfile = viewModel.userProfile
     var showMeasurementSheet by remember { mutableStateOf(false) }
 
     // --- HIỂN THỊ BOTTOM SHEET ---

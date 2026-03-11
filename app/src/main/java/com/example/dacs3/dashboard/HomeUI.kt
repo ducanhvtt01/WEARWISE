@@ -40,9 +40,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airbnb.lottie.compose.*
 import com.example.dacs3.R
+import com.example.dacs3.connectDB.DashboardViewModel
+import com.example.dacs3.connectDB.Profile
+import com.example.dacs3.connectDB.ClothingItem
+import com.example.dacs3.connectDB.supabase
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
+import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -55,7 +60,12 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}, onLogoutSuccess: () -> Unit) {
+fun HomeUI(
+    isDarkMode: Boolean = false,
+    onThemeChange: (Boolean) -> Unit = {},
+    onLogoutSuccess: () -> Unit,
+    viewModel: DashboardViewModel = viewModel()
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -65,11 +75,19 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}, o
     var isAiScanning by remember { mutableStateOf(false) }
     var aiScanResultText by remember { mutableStateOf<String?>(null) } // Để hiển thị lên màn hình
     var rawScannedJson by remember { mutableStateOf<JSONObject?>(null) } // Lưu data chuẩn để đẩy lên DB
+    var scannedBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
+    val userId = supabase.auth.currentUserOrNull()?.id ?: ""
+    LaunchedEffect(userId) {
+        if (userId.isNotEmpty()) viewModel.getProfile(userId)
+    }
+
+    val userProfile = viewModel.userProfile
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
+            scannedBitmap = bitmap
             isAiScanning = true
             scope.launch(Dispatchers.IO) {
                 try {
@@ -82,7 +100,7 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}, o
                         }
                     )
 
-                    // Câu lệnh chi tiết, bắt buộc trả về đúng cấu trúc bạn cần
+                    // Câu lệnh chi tiết, bắt buộc trả về đúng cấu trúc
                     val prompt = """
                         Analyze this clothing item in the image. 
                         Return strictly valid JSON with the following schema:
@@ -168,10 +186,16 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}, o
         ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                 when (selectedTab) {
-                    0 -> DashboardContent()
+                    0 -> DashboardContent(userProfile)
                     1 -> ClosetScreen()
                     2 -> StylistScreen()
-                    3 -> ProfileScreen(isDarkMode = isDarkMode, onThemeChange = onThemeChange, onLogoutSuccess = onLogoutSuccess)
+                    3 -> ProfileScreen(
+                        isDarkMode = isDarkMode,
+                        onThemeChange = onThemeChange,
+                        onLogoutSuccess = onLogoutSuccess,
+                        viewModel = viewModel,
+                        userProfile = userProfile
+                    )
                 }
             }
         }
@@ -234,38 +258,40 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}, o
                     }
                 },
                 confirmButton = {
-                    if (!isAiScanning && rawScannedJson != null) {
+                    if (!isAiScanning && rawScannedJson != null && scannedBitmap != null) {
                         Button(
                             onClick = {
-                                // 1. BÓC TÁCH DỮ LIỆU RA TỪ JSON
                                 val json = rawScannedJson!!
+                                val currentUserId = supabase.auth.currentUserOrNull()?.id ?: ""
 
-                                // Chuyển đổi mảng JSON thành Danh sách Kotlin (List<String>)
+                                // 1. Lấy mảng seasons và occasions
                                 val seasonsArray = json.optJSONArray("seasons")
                                 val seasonsList = List(seasonsArray?.length() ?: 0) { seasonsArray?.getString(it) ?: "" }
 
                                 val occasionsArray = json.optJSONArray("occasions")
                                 val occasionsList = List(occasionsArray?.length() ?: 0) { occasionsArray?.getString(it) ?: "" }
 
-                                // 2. TẠO ĐỐI TƯỢNG CLOTHING ITEM CỦA BẠN SẴN SÀNG LƯU VÀO DB
-                                /*
-                                val newClothingItem = ClothingItem(
-                                    userId = "MÃ_USER_CỦA_BẠN_TỪ_SUPABASE",
-                                    imageUrl = "LINK_ẢNH_SAU_KHI_UPLOAD",
-                                    category = json.optString("category", "Unknown"),
+                                // 2. Lấy Name từ JSON (AI đã trả về trong prompt)
+                                val itemName = json.optString("name", "Unknown Item")
+
+                                // 3. Tạo đối tượng để lưu
+                                val itemToSave = ClothingItem(
+                                    userId = currentUserId,
+                                    name = itemName, // ĐƯA TÊN VÀO ĐÂY
+                                    category = json.optString("category", "Other"),
                                     mainColor = json.optString("main_color", "Unknown"),
                                     seasons = seasonsList,
-                                    occasions = occasionsList
+                                    occasions = occasionsList,
+                                    imageUrl = "" // Sẽ được cập nhật sau khi upload bitmap thành công
                                 )
 
-                                // TODO: Gọi hàm Supabase insert object newClothingItem vào database tại đây!
-                                */
-
-                                // 3. Dọn dẹp Hộp thoại
-                                aiScanResultText = null
-                                rawScannedJson = null
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                // 4. Gọi hàm upload và lưu
+                                viewModel.uploadAndSaveClothes(scannedBitmap!!, itemToSave) {
+                                    aiScanResultText = null
+                                    rawScannedJson = null
+                                    scannedBitmap = null
+                                }
+                            }
                         ) {
                             Text("Add to Closet")
                         }
@@ -313,7 +339,7 @@ fun HomeUI(isDarkMode: Boolean = false, onThemeChange: (Boolean) -> Unit = {}, o
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardContent() {
+fun DashboardContent(currentProfile: Profile?) {
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
 
@@ -515,7 +541,7 @@ fun DashboardContent() {
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Đức Anh",
+                        text = currentProfile?.fullName?.substringAfterLast(" ") ?: "User",
                         fontSize = 26.sp,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,

@@ -43,9 +43,9 @@ data class ProfileUpdate(
 data class ClothingItem(
     val id: String? = null,
     @SerialName("user_id") val userId: String,
-    @SerialName("image_url") val imageUrl: String,
-    val name: String,
-    val category: String, // Top, Bottom, Shoes...
+    @SerialName("image_url") val imageUrl: String = "",
+    val name: String = "Unknown",
+    val category: String,
     @SerialName("main_color") val mainColor: String? = null,
     val seasons: List<String>? = null,
     val occasions: List<String>? = null
