@@ -36,12 +36,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dacs3.connectDB.ClothingItem
+import com.example.dacs3.connectDB.DashboardViewModel
 import kotlinx.coroutines.launch
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.serialization.SerialName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClosetScreen() {
+fun ClosetScreen(viewModel: DashboardViewModel) {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = listOf("All", "Top", "Bottom", "Outerwear", "Shoes", "Accessories")
 
@@ -68,65 +71,12 @@ fun ClosetScreen() {
         }
     }
 
-    // --- DỮ LIỆU MẪU ĐÃ CẬP NHẬT ---
-    val itemsList = remember {
-        mutableStateListOf(
-            ClothingItem(
-                id = "1",
-                userId = "user_01",
-                imageUrl = "https://example.com/white-shirt.jpg",
-                name = "Zara White Oxford Shirt",
-                category = "Top",
-                mainColor = "White",
-                seasons = listOf("Summer", "Spring"),
-                occasions = listOf("Casual", "Work")
-            ),
-            ClothingItem(
-                id = "2",
-                userId = "user_01",
-                imageUrl = "https://example.com/trousers.jpg",
-                name = "Mango Tailored Trousers",
-                category = "Bottom",
-                mainColor = "Navy",
-                seasons = listOf("All"),
-                occasions = listOf("Work", "Formal")
-            ),
-            ClothingItem(
-                id = "3",
-                userId = "user_01",
-                imageUrl = "https://example.com/trench-coat.jpg",
-                name = "Beige Trench Coat",
-                category = "Outerwear",
-                mainColor = "Beige",
-                seasons = listOf("Autumn", "Winter"),
-                occasions = listOf("Casual")
-            ),
-            ClothingItem(
-                id = "4",
-                userId = "user_01",
-                imageUrl = "https://example.com/loafers.jpg",
-                name = "Brown Leather Loafers",
-                category = "Shoes",
-                mainColor = "Brown",
-                seasons = listOf("All"),
-                occasions = listOf("Casual", "Party")
-            ),
-            ClothingItem(
-                id = "5",
-                userId = "user_01",
-                imageUrl = "https://example.com/tshirt.jpg",
-                name = "Local Brand T-Shirt",
-                category = "Top",
-                mainColor = "Black",
-                seasons = listOf("Summer"),
-                occasions = listOf("Casual")
-            )
-        )
-    }
+    // Lắng nghe dữ liệu thật từ ViewModel
+    val itemsList by viewModel.clothingItems.collectAsState()
 
     val filteredItems = itemsList.filter {
         (selectedCategory == "All" || it.category.equals(selectedCategory, ignoreCase = true)) &&
-                (it.name.contains(searchQuery, ignoreCase = true) || it.mainColor?.contains(
+                (it.clothes_name.contains(searchQuery, ignoreCase = true) || it.mainColor?.contains(
                     searchQuery,
                     ignoreCase = true
                 ) == true)
@@ -142,32 +92,27 @@ fun ClosetScreen() {
             ItemDetailSheetContent(
                 item = selectedItemToEdit!!,
                 onSave = { updatedItem ->
-                    val index = itemsList.indexOfFirst { it.id == updatedItem.id }
-                    if (index != -1) {
-                        itemsList[index] = updatedItem
-                    }
+                    // Lưu dữ liệu cập nhật lên Database
+                    viewModel.updateClothingItem(updatedItem)
                     showItemSheet = false
-                    scope.launch { snackbarHostState.showSnackbar("Đã cập nhật ${updatedItem.name}!") }
+                    scope.launch { snackbarHostState.showSnackbar("Updated ${updatedItem.clothes_name}!") }
                 },
                 onStyleWithAI = {
                     showItemSheet = false
                 },
                 onDelete = {
                     val itemToRemove = selectedItemToEdit!!
-                    val index = itemsList.indexOf(itemToRemove)
-                    if (index != -1) {
-                        itemsList.removeAt(index)
-                        showItemSheet = false
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                "Đã xóa ${itemToRemove.name}",
-                                "Hoàn tác",
-                                duration = SnackbarDuration.Short
-                            )
-                            if (result == SnackbarResult.ActionPerformed) itemsList.add(
-                                index,
-                                itemToRemove
-                            )
+                    // Xóa dữ liệu khỏi Database
+                    viewModel.deleteClothingItem(itemToRemove)
+                    showItemSheet = false
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            "Deleted ${itemToRemove.clothes_name}",
+                            "Undo", // Nếu có undo thì bạn phải gọi lại viewModel.addClothing() nhé
+                            duration = SnackbarDuration.Short
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.addClothing(itemToRemove) {}
                         }
                     }
                 }
@@ -361,18 +306,17 @@ fun ClosetScreen() {
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { dismissValue ->
                             if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                                val index = itemsList.indexOf(item)
-                                itemsList.remove(item)
+                                // Gọi xóa từ DB khi vuốt
+                                viewModel.deleteClothingItem(item)
                                 scope.launch {
                                     val result = snackbarHostState.showSnackbar(
-                                        "Đã xóa ${item.name}",
-                                        "Hoàn tác",
+                                        "Deleted ${item.clothes_name}",
+                                        "Undo",
                                         duration = SnackbarDuration.Short
                                     )
-                                    if (result == SnackbarResult.ActionPerformed) itemsList.add(
-                                        index,
-                                        item
-                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.addClothing(item) {}
+                                    }
                                 }
                                 true
                             } else false
@@ -419,7 +363,6 @@ fun ClosetScreen() {
     }
 }
 
-// --- THẺ HIỂN THỊ QUẦN ÁO BÊN NGOÀI ---
 @Composable
 fun ClosetItemCard(item: ClothingItem, onClick: () -> Unit) {
     Card(
@@ -445,16 +388,27 @@ fun ClosetItemCard(item: ClothingItem, onClick: () -> Unit) {
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Outlined.Checkroom,
-                    null,
-                    modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // KIỂM TRA: Nếu có link ảnh thì dùng AsyncImage của Coil để hiển thị
+                if (item.imageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = item.imageUrl,
+                        contentDescription = item.clothes_name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop // Cắt ảnh cho vừa vặn với khung bo góc
+                    )
+                } else {
+                    // Nếu chưa có ảnh (hoặc lỗi mạng) thì vẫn hiện cái móc áo dự phòng
+                    Icon(
+                        Icons.Outlined.Checkroom,
+                        null,
+                        modifier = Modifier.size(40.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                item.name,
+                item.clothes_name,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
@@ -464,7 +418,6 @@ fun ClosetItemCard(item: ClothingItem, onClick: () -> Unit) {
     }
 }
 
-// --- COMPONENT CUSTOM CHIP (KHẮC PHỤC HOÀN TOÀN LỖI RIPPLE) ---
 @Composable
 fun CustomChip(
     text: String,
@@ -492,7 +445,7 @@ fun CustomChip(
     }
 }
 
-// --- GIAO DIỆN BOTTOM SHEET CHI TIẾT ĐÃ FIX LỖI ---
+// --- GIAO DIỆN BOTTOM SHEET CHI TIẾT ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemDetailSheetContent(
@@ -501,7 +454,7 @@ fun ItemDetailSheetContent(
     onStyleWithAI: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var editName by remember { mutableStateOf(item.name) }
+    var editName by remember { mutableStateOf(item.clothes_name) }
     var editCategory by remember { mutableStateOf(item.category) }
     var editColor by remember { mutableStateOf(item.mainColor ?: "") }
 
@@ -672,7 +625,7 @@ fun ItemDetailSheetContent(
         OutlinedButton(
             onClick = {
                 val updatedItem = item.copy(
-                    name = editName,
+                    clothes_name = editName,
                     category = editCategory,
                     mainColor = editColor,
                     seasons = editSeasons.toList(),
