@@ -18,7 +18,7 @@ import androidx.navigation.navDeepLink
 import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.connectDB.SupabaseManager
 import com.example.dacs3.connectDB.supabase
-import com.example.dacs3.dashboard.HomeUI
+import com.example.dacs3.dashboard.homeui.HomeUI
 import com.example.dacs3.login.LoginScreen
 import com.example.dacs3.survey.SurveyMasterScreen
 import com.example.dacs3.ui.theme.ThemeManager
