@@ -45,10 +45,7 @@ class DashboardViewModel : ViewModel() {
                     supabase.from("clothes")
                         .select {
                             filter {
-                                eq(
-                                    "user_id",
-                                    userId
-                                )
+                                eq("user_id", userId)
                             }
                         }
                         .decodeList<ClothingItem>()
@@ -68,11 +65,12 @@ class DashboardViewModel : ViewModel() {
             try {
                 // 1. Chuyển Bitmap thành ByteArray
                 val baos = ByteArrayOutputStream()
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos)
+                // Dùng PNG để giữ được nền trong suốt (không bị viền đen) nếu bạn đã làm tính năng xóa nền
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, baos)
                 val imageBytes = baos.toByteArray()
 
-                // 2. Tạo tên file duy nhất (vd: clothes_123456789.jpg)
-                val fileName = "clothes_${System.currentTimeMillis()}.jpg"
+                // 2. Tạo tên file duy nhất (vd: clothes_123456789.png)
+                val fileName = "clothes_${System.currentTimeMillis()}.png"
 
                 // 3. Upload lên bucket có tên là "clothing_images"
                 val bucket = supabase.storage.from("clothing_images")
@@ -81,13 +79,17 @@ class DashboardViewModel : ViewModel() {
                 // 4. Lấy Public URL của ảnh vừa upload
                 val publicUrl = bucket.publicUrl(fileName)
 
-                // 5. Cập nhật URL vào object và insert vào Database
+                // 5. Cập nhật URL vào object
                 val finalItem = clothingItem.copy(imageUrl = publicUrl)
-                supabase.from("clothes").insert(finalItem)
 
-                // Cập nhật lại UI List ngay lập tức sau khi insert DB thành công
+                // [ĐÃ SỬA]: Yêu cầu Supabase trả về item đã có ID thật
+                val savedItem = supabase.from("clothes").insert(finalItem) {
+                    select()
+                }.decodeSingle<ClothingItem>()
+
+                // Cập nhật lại UI List với savedItem (Lúc này savedItem.id đã có mã số thật)
                 val currentList = _clothingItems.value.toMutableList()
-                currentList.add(0, finalItem) // Thêm áo mới lên đầu danh sách
+                currentList.add(0, savedItem)
                 _clothingItems.value = currentList
 
                 launch(Dispatchers.Main) {
@@ -102,11 +104,14 @@ class DashboardViewModel : ViewModel() {
     fun addClothing(item: ClothingItem, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                supabase.from("clothes").insert(item)
+                // [ĐÃ SỬA]: Yêu cầu Supabase trả về item đã có ID thật (dùng cho Undo khôi phục đồ)
+                val savedItem = supabase.from("clothes").insert(item) {
+                    select()
+                }.decodeSingle<ClothingItem>()
 
                 // Cập nhật lại UI List
                 val currentList = _clothingItems.value.toMutableList()
-                currentList.add(0, item)
+                currentList.add(0, savedItem)
                 _clothingItems.value = currentList
 
                 launch(Dispatchers.Main) { onSuccess() }
@@ -136,7 +141,7 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
-    // Hàm xóa quần áo (dùng cho BottomSheet)
+    // Hàm xóa quần áo (dùng cho BottomSheet và SwipeToDismiss)
     fun deleteClothingItem(item: ClothingItem) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
