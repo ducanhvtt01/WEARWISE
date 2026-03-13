@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -70,6 +72,10 @@ fun HomeUI(
     var aiScanResultText by remember { mutableStateOf<String?>(null) }
     var rawScannedJson by remember { mutableStateOf<JSONObject?>(null) }
     var scannedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    var isCheckingDupe by remember { mutableStateOf(false) } // State khi đang hỏi "Có nên mua không"
+    var antiImpulseAdvice by remember { mutableStateOf<String?>(null) } // Lưu lời khuyên của AI
+    val closetItems by viewModel.clothingItems.collectAsState() // Lấy dữ liệu tủ đồ hiện tại
 
     val userId = supabase.auth.currentUserOrNull()?.id ?: ""
     LaunchedEffect(userId) {
@@ -228,44 +234,38 @@ fun HomeUI(
             }
         }
 
-        // --- HỘP THOẠI HIỂN THỊ KẾT QUẢ AI SCAN ---
+        // --- HỘP THOẠI HIỂN THỊ KẾT QUẢ AI SCAN & CHỐNG MUA SẮM BỐC ĐỒNG ---
         if (isAiScanning || aiScanResultText != null) {
             AlertDialog(
                 onDismissRequest = {
-                    if (!isAiScanning) {
+                    if (!isAiScanning && !isCheckingDupe) {
                         aiScanResultText = null
                         rawScannedJson = null
+                        antiImpulseAdvice = null // Reset lời khuyên
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-
-                        Icon(
-                            imageVector = Icons.Default.Psychology,
-                            contentDescription = "AI"
-                        )
-
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Psychology, contentDescription = "AI")
                         Spacer(modifier = Modifier.width(8.dp))
-
                         Text(
-                            text = if (isAiScanning) "AI is analyzing..." else "AI Stylist Result",
+                            text = if (isAiScanning) "AI is analyzing..."
+                            else if (isCheckingDupe) "Stylist is thinking..."
+                            else "AI Stylist Result",
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 },
                 text = {
-                    if (isAiScanning) {
+                    if (isAiScanning || isCheckingDupe) {
+                        // Hiển thị Lottie loading khi đang quét hoặc đang hỏi ý kiến
                         Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Spacer(modifier = Modifier.padding(top = 20.dp))
-                            // Lottie 1
                             val comp1 by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.ai_loading))
                             val prog1 by animateLottieCompositionAsState(
                                 comp1,
@@ -276,77 +276,190 @@ fun HomeUI(
                                 { prog1 },
                                 modifier = Modifier.size(120.dp)
                             )
-
-                            // Lottie 2
-                            val comp2 by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.loading3))
-                            val prog2 by animateLottieCompositionAsState(
-                                comp2,
-                                iterations = LottieConstants.IterateForever
-                            )
-                            if (comp2 != null) LottieAnimation(
-                                comp2,
-                                { prog2 },
-                                modifier = Modifier.size(120.dp)
-                            )
                         }
                     } else {
-                        Text(
-                            text = aiScanResultText ?: "No results found",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 24.sp
-                        )
+                        // Hiển thị thông tin món đồ
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            Text(
+                                text = aiScanResultText ?: "No results found",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            // NẾU CÓ LỜI KHUYÊN TỪ AI THÌ HIỂN THỊ Ở ĐÂY (Màu cam cảnh báo)
+                            if (antiImpulseAdvice != null) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Filled.Warning,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.secondary
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                "Anti-Impulse Advice",
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = antiImpulseAdvice!!,
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
                 confirmButton = {
-                    if (!isAiScanning && rawScannedJson != null && scannedBitmap != null) {
-                        Button(
-                            onClick = {
-                                val json = rawScannedJson!!
-                                val currentUserId = supabase.auth.currentUserOrNull()?.id ?: ""
+                    if (!isAiScanning && !isCheckingDupe) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            //NÚT "SHOULD I BUY THIS?" (NẰM TRÊN CÙNG)
+                            if (rawScannedJson != null && scannedBitmap != null && antiImpulseAdvice == null) {
+                                Button(
+                                    onClick = {
+                                        isCheckingDupe = true
+                                        scope.launch(Dispatchers.IO) {
+                                            try {
+                                                val generativeModel = GenerativeModel(
+                                                    modelName = "gemini-2.5-flash",
+                                                    apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8"
+                                                )
 
-                                val seasonsArray = json.optJSONArray("seasons")
-                                val seasonsList = List(seasonsArray?.length() ?: 0) {
-                                    seasonsArray?.getString(it) ?: ""
-                                }
+                                                // Gom dữ liệu tủ đồ hiện tại thành chuỗi Text
+                                                val closetSummary =
+                                                    closetItems.joinToString(separator = "; ") {
+                                                        "${it.clothes_name} (${it.mainColor}, ${it.category})"
+                                                    }
 
-                                val occasionsArray = json.optJSONArray("occasions")
-                                val occasionsList = List(occasionsArray?.length() ?: 0) {
-                                    occasionsArray?.getString(it) ?: ""
-                                }
+                                                val prompt = """
+                                                    You are an elite fashion director and high-end personal stylist. I need your expert eye to curate my wardrobe.
+                                                    Here is my current closet inventory: $closetSummary.
+                                                    Analyze the clothing item in the image I'm about to buy.
+                                                    Give me a highly fashionable, magazine-style critique strictly formatted in 3 bullet points:
+                                                
+                                                    1. Aesthetic & Vibe: What is the core style profile of this item (e.g., Old Money, Gorpcore, Minimalist, Y2K, elevated Smart Casual)? Is it a timeless capsule staple or a fleeting trend? Does the texture and silhouette look expensive and versatile?
+                                                    2. Outfit Alchemy: Act like a stylist on a photoshoot. Create 2 specific, runway-ready outfit formulas combining this new item with the exact pieces I ALREADY own in my closet. Talk about color blocking, layering, or proportions. (If it completely clashes with my current wardrobe's color palette, call it out!).
+                                                    3. The Stylist's Verdict: Choose strictly one of the following:
+                                                       - 💎 BUY: It's a chic investment piece that significantly elevates your rotation.
+                                                       - ⏳ THINK TWICE: It's a nice statement piece, but only buy it if it truly fits your core personal style. 
+                                                       - 🚫 SKIP: Fashion faux pas, it disrupts your closet's harmony, or you already own a piece that does the exact same job better.
+                                                
+                                                    Keep your tone chic, brutally honest, and deeply fashionable. Be concise.
+                                                """.trimIndent()
 
-                                val itemName = json.optString("name", "Unknown Item")
-
-                                val itemToSave = ClothingItem(
-                                    userId = currentUserId,
-                                    clothes_name = itemName,
-                                    category = json.optString("category", "Other"),
-                                    mainColor = json.optString("main_color", "Unknown"),
-                                    seasons = seasonsList,
-                                    occasions = occasionsList,
-                                    imageUrl = ""
-                                )
-
-                                // Gọi hàm upload và lưu (ViewModel sẽ tự động update lại List cho ClosetScreen)
-                                viewModel.uploadAndSaveClothes(scannedBitmap!!, itemToSave) {
-                                    aiScanResultText = null
-                                    rawScannedJson = null
-                                    scannedBitmap = null
+                                                val response = generativeModel.generateContent(
+                                                    content {
+                                                        image(scannedBitmap!!)
+                                                        text(prompt)
+                                                    }
+                                                )
+                                                antiImpulseAdvice = response.text
+                                            } catch (e: Exception) {
+                                                antiImpulseAdvice =
+                                                    "Error analyzing closet. Better save your money just in case!"
+                                            } finally {
+                                                isCheckingDupe = false
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                    modifier = Modifier
+                                        .fillMaxWidth() // Kéo dãn nút ra cho bự và đẹp
+                                        .padding(bottom = 12.dp)
+                                        .height(48.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.AutoAwesome,
+                                        null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Should I buy this?",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
                                 }
                             }
-                        ) {
-                            Text("Add to Closet")
-                        }
-                    }
-                },
-                dismissButton = {
-                    if (!isAiScanning) {
-                        TextButton(onClick = {
-                            aiScanResultText = null
-                            rawScannedJson = null
-                        }) {
-                            Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            // NÚT "CLOSE" VÀ "ADD TO CLOSET" NẰM DƯỚI
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // --- NÚT CLOSE (BÊN TRÁI) ---
+                                TextButton(
+                                    onClick = {
+                                        aiScanResultText = null
+                                        rawScannedJson = null
+                                        antiImpulseAdvice = null
+                                    }
+                                ) {
+                                    Text(
+                                        "Close",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                // --- NÚT ADD TO CLOSET (BÊN PHẢI) ---
+                                if (rawScannedJson != null && scannedBitmap != null) {
+                                    Button(
+                                        onClick = {
+                                            val json = rawScannedJson!!
+                                            val currentUserId =
+                                                supabase.auth.currentUserOrNull()?.id ?: ""
+
+                                            val itemToSave = ClothingItem(
+                                                userId = currentUserId,
+                                                clothes_name = json.optString(
+                                                    "name",
+                                                    "Unknown Item"
+                                                ),
+                                                category = json.optString("category", "Other"),
+                                                mainColor = json.optString("main_color", "Unknown"),
+                                                seasons = List(
+                                                    json.optJSONArray("seasons")?.length() ?: 0
+                                                ) {
+                                                    json.optJSONArray("seasons")?.getString(it)
+                                                        ?: ""
+                                                },
+                                                occasions = List(
+                                                    json.optJSONArray("occasions")?.length() ?: 0
+                                                ) {
+                                                    json.optJSONArray("occasions")?.getString(it)
+                                                        ?: ""
+                                                },
+                                                imageUrl = ""
+                                            )
+
+                                            viewModel.uploadAndSaveClothes(
+                                                scannedBitmap!!,
+                                                itemToSave
+                                            ) {
+                                                aiScanResultText = null
+                                                rawScannedJson = null
+                                                scannedBitmap = null
+                                                antiImpulseAdvice = null
+                                            }
+                                        }
+                                    ) {
+                                        Text(if (antiImpulseAdvice == null) "Add to Closet" else "Buy & Add to Closet")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
