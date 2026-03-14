@@ -1,4 +1,4 @@
-//Chuyên lo việc lập lịch chạy ngầm
+//Chuyên lo việc lập lịch chạy ngầm khi rời ứng dụng
 package com.example.dacs3
 
 import android.content.Context
