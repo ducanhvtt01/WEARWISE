@@ -52,11 +52,8 @@ data class ClothingItem(
 )
 
 // 3. Bộ phối đồ
-@Serializable
 data class Outfit(
-    val id: String? = null,
-    @SerialName("user_id") val userId: String,
-    val name: String,
-    @SerialName("image_url") val imageUrl: String? = null,
-    val occasion: String? = null
+    val top: ClothingItem,
+    val bottom: ClothingItem,
+    val shoes: ClothingItem
 )

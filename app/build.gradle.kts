@@ -89,4 +89,8 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Thư viện Deep Learning
+    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-api:0.5.2")
+    implementation("org.jetbrains.kotlinx:kotlin-deeplearning-tensorflow:0.5.2")
 }
