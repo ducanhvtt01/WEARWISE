@@ -47,6 +47,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.datastore.core)
+    implementation(libs.androidx.work.runtime.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -93,4 +94,7 @@ dependencies {
     // Thư viện Deep Learning
     implementation("org.jetbrains.kotlinx:kotlin-deeplearning-api:0.5.2")
     implementation("org.jetbrains.kotlinx:kotlin-deeplearning-tensorflow:0.5.2")
+
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
 }

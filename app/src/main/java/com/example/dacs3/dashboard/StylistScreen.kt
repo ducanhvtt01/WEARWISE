@@ -8,8 +8,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Checkroom
@@ -22,15 +24,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.dacs3.dashboard.homeui.OutfitItemPlaceholder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.LocalTime
 
-// --- DATA CLASS CHO TIN NHẮN ---
+// --- MESSAGE DATA CLASS ---
 data class ChatMessage(
     val text: String,
     val isFromUser: Boolean,
@@ -39,39 +44,40 @@ data class ChatMessage(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StylistScreen() {
+fun StylistScreen(
+    weatherViewModel: WeatherViewModel = viewModel() // Integrate WeatherViewModel
+) {
     var promptText by remember { mutableStateOf("") }
     var isAiTyping by remember { mutableStateOf(false) }
-
-    // Biến điều khiển việc hiển thị màn hình chat hay màn hình chính
     var showChat by remember { mutableStateOf(false) }
 
-    // Quản lý focus (để ẩn bàn phím khi bấm nút Back)
     val focusManager = LocalFocusManager.current
-
-    // Danh sách lưu lịch sử tin nhắn
     val chatMessages = remember { mutableStateListOf<ChatMessage>() }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    // Tự động cuộn xuống cuối khi có tin nhắn mới
+    // Get real-time temperature from WeatherApi
+    val currentTemp by weatherViewModel.temperature.collectAsState()
+
+    // Fetch weather when screen opens
+    LaunchedEffect(Unit) {
+        weatherViewModel.fetchWeather()
+    }
+
     LaunchedEffect(chatMessages.size, isAiTyping) {
         if (showChat && (chatMessages.isNotEmpty() || isAiTyping)) {
             listState.animateScrollToItem(maxOf(0, listState.layoutInfo.totalItemsCount - 1))
         }
     }
 
-    // Hàm giả lập gửi tin nhắn (Test UI)
     fun sendFakePrompt(userPrompt: String) {
         if (userPrompt.isBlank() || isAiTyping) return
 
-        // Thêm tin nhắn của User
         chatMessages.add(ChatMessage(text = userPrompt, isFromUser = true))
         promptText = ""
         isAiTyping = true
-        showChat = true // Chuyển sang màn hình chat ngay khi gửi
+        showChat = true
 
-        // Giả lập AI phản hồi sau 1.5 giây
         scope.launch {
             delay(1500)
             val mockAiResponse =
@@ -84,14 +90,13 @@ fun StylistScreen() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            // Bao bọc thanh chat với imePadding để nó nảy lên khi mở bàn phím
             Box(modifier = Modifier.imePadding()) {
                 ChatBarSection(
                     promptText = promptText,
                     isTyping = isAiTyping,
                     onValueChange = { promptText = it },
                     onSend = { sendFakePrompt(promptText) },
-                    onFocus = { showChat = true } // BẬT CHAT KHI BẤM VÀO Ô NHẬP LIỆU
+                    onFocus = { showChat = true }
                 )
             }
         }
@@ -101,32 +106,44 @@ fun StylistScreen() {
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // Phần Header giữ cố định ở trên cùng
             Box(modifier = Modifier.padding(horizontal = 24.dp)) {
                 StylistHeader(
                     isChatMode = showChat,
                     onBackClick = {
                         showChat = false
-                        focusManager.clearFocus() // Ẩn bàn phím và bỏ focus khỏi thanh chat khi quay lại
+                        focusManager.clearFocus()
                     }
                 )
             }
 
-            // KIỂM TRA ĐIỀU KIỆN ĐỂ HIỂN THỊ GIAO DIỆN
             if (!showChat) {
                 // ==========================================
-                // VÙNG 1: HIỂN THỊ GIAO DIỆN CŨ
+                // MAIN UI WITH CONTEXTUAL BRIEFING CARD
                 // ==========================================
-                Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .weight(1f) // Cấp không gian linh hoạt
+                        .verticalScroll(rememberScrollState()) // Đã thêm khả năng cuộn
+                ) {
+
+                    // The dynamic card that changes based on time
+                    ContextBriefingCard(
+                        currentTemperature = currentTemp,
+                        onActionClick = { aiPrompt ->
+                            sendFakePrompt(aiPrompt)
+                        }
+                    )
+
                     QuickPromptsSection(onPromptClick = { selectedPrompt ->
                         sendFakePrompt(selectedPrompt)
                     })
                     OutfitCanvasSection()
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(24.dp)) // Tăng khoảng trống dưới cùng một chút
                 }
             } else {
                 // ==========================================
-                // VÙNG 2: HIỂN THỊ KHUNG CHAT
+                // CHAT INTERFACE
                 // ==========================================
                 LazyColumn(
                     state = listState,
@@ -152,7 +169,110 @@ fun StylistScreen() {
 }
 
 // =======================================================
-// CÁC THÀNH PHẦN GIAO DIỆN CŨ (ĐƯỢC GIỮ NGUYÊN)
+// CONTEXT-AWARE BRIEFING COMPONENT (NEW)
+// =======================================================
+
+data class BriefingContent(
+    val icon: ImageVector,
+    val iconColor: Color,
+    val greeting: String,
+    val message: String,
+    val buttonText: String,
+    val aiPrompt: String
+)
+
+@Composable
+fun ContextBriefingCard(
+    currentTemperature: String,
+    onActionClick: (String) -> Unit
+) {
+    val currentHour = LocalTime.now().hour
+
+    val content = when (currentHour) {
+        in 5..11 -> BriefingContent(
+            icon = Icons.Filled.WbSunny,
+            iconColor = Color(0xFFFFA000),
+            greeting = "Good morning, Duc Anh!",
+            message = "It's a fresh morning ($currentTemperature). You have an OS Exam at 9 AM. Your water-resistant Smart Casual look is ready.",
+            buttonText = "View Morning Outfit",
+            aiPrompt = "Show me the details of the Smart Casual outfit for my morning exam."
+        )
+
+        in 12..17 -> BriefingContent(
+            icon = Icons.Filled.Cloud,
+            iconColor = Color(0xFF42A5F5),
+            greeting = "Good afternoon!",
+            message = "The temperature is around $currentTemperature. If you are heading out later, grab a light windbreaker just in case.",
+            buttonText = "Find a Jacket",
+            aiPrompt = "Suggest a light windbreaker or jacket from my closet."
+        )
+
+        else -> BriefingContent(
+            icon = Icons.Filled.Nightlight,
+            iconColor = Color(0xFF5E35B1),
+            greeting = "Good evening!",
+            message = "Time to wind down. Let's prep your outfit for tomorrow's Computer Networks lab class so you can sleep in an extra 15 minutes!",
+            buttonText = "Plan Tomorrow's Look",
+            aiPrompt = "Help me pick a comfortable outfit for my Computer Networks lab class tomorrow morning."
+        )
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp)
+            .shadow(4.dp, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = content.icon,
+                    contentDescription = null,
+                    tint = content.iconColor,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = content.greeting,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = content.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                lineHeight = 22.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Button(
+                onClick = { onActionClick(content.aiPrompt) },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Outlined.Checkroom,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = content.buttonText, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+// =======================================================
+// EXISTING UI COMPONENTS
 // =======================================================
 
 @Composable
@@ -165,7 +285,6 @@ fun StylistHeader(isChatMode: Boolean = false, onBackClick: () -> Unit = {}) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // HIỂN THỊ NÚT BACK NẾU ĐANG Ở MÀN HÌNH CHAT
             if (isChatMode) {
                 IconButton(
                     onClick = onBackClick,
@@ -261,7 +380,7 @@ fun OutfitCanvasSection() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.85f),
+            .wrapContentHeight(), // Đã thay đổi: Thẻ tự động co giãn theo nội dung, không bị lỗi tràn viền
         shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
@@ -295,6 +414,8 @@ fun OutfitCanvasSection() {
                 }
             }
 
+            Spacer(modifier = Modifier.height(24.dp)) // Thêm Spacer để giao diện thoáng hơn sau khi bỏ fillMaxHeight
+
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutfitItemPlaceholder(
                     "Beige Trench Coat",
@@ -318,6 +439,8 @@ fun OutfitCanvasSection() {
                     MaterialTheme.colorScheme.secondary
                 )
             }
+
+            Spacer(modifier = Modifier.height(32.dp)) // Thêm Spacer trước phần nút bấm
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -370,7 +493,6 @@ fun OutfitCanvasSection() {
     }
 }
 
-// CẬP NHẬT THANH CHAT CŨ: THÊM TÍNH NĂNG "LẮNG NGHE LÚC BẤM VÀO"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatBarSection(
@@ -378,7 +500,7 @@ fun ChatBarSection(
     isTyping: Boolean,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    onFocus: () -> Unit = {} // Param mới để lắng nghe khi bấm vào
+    onFocus: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -410,7 +532,6 @@ fun ChatBarSection(
             modifier = Modifier
                 .weight(1f)
                 .onFocusChanged { focusState ->
-                    // KHI Ổ NHẬP LIỆU ĐƯỢC CHỌN -> BÁO LÊN TRÊN ĐỂ HIỆN CHAT
                     if (focusState.isFocused) {
                         onFocus()
                     }
@@ -445,10 +566,6 @@ fun ChatBarSection(
         }
     }
 }
-
-// =======================================================
-// CÁC THÀNH PHẦN MỚI CHO GIAO DIỆN CHAT BONG BÓNG
-// =======================================================
 
 @Composable
 fun ChatBubble(message: ChatMessage) {

@@ -1,5 +1,13 @@
 package com.example.dacs3.dashboard
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,17 +26,36 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.work.WorkManager
+import com.example.dacs3.WorkerSetupHelper
 import com.example.dacs3.connectDB.DashboardViewModel
-import kotlinx.serialization.SerialName
 import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.connectDB.supabase
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.launch
+
+// HÀM KIỂM TRA QUYỀN RIÊNG ĐỂ TÁI SỬ DỤNG
+fun checkNotificationPermission(context: Context): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,20 +66,76 @@ fun ProfileScreen(
     onLogoutSuccess: () -> Unit,
     userProfile: Profile?
 ) {
-    var notificationsEnabled by remember { mutableStateOf(true) }
-
-    // 1. TẠO TRẠNG THÁI (STATE) ĐỂ LƯU THÔNG TIN PROFILE VÀ QUẢN LÝ BOTTOM SHEET
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // Lấy userId từ Supabase Auth
-    val userId = remember { supabase.auth.currentUserOrNull()?.id ?: "" }
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Tự động load dữ liệu khi vào màn hình
+    // SỬ DỤNG SHAREDPREFERENCES ĐỂ LƯU "LỰA CHỌN CỦA NGƯỜI DÙNG"
+    val sharedPrefs =
+        remember { context.getSharedPreferences("WearwisePrefs", Context.MODE_PRIVATE) }
 
+    // STATE THÔNG BÁO: Chỉ bật khi người dùng đã gạt bật VÀ Hệ thống cho phép
+    var notificationsEnabled by remember {
+        mutableStateOf(
+            sharedPrefs.getBoolean(
+                "is_notif_enabled",
+                false
+            ) && checkNotificationPermission(context)
+        )
+    }
+
+    var showSettingsDialog by remember { mutableStateOf(false) }
     var showMeasurementSheet by remember { mutableStateOf(false) }
 
-    // --- HIỂN THỊ BOTTOM SHEET ---
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val userId = remember { supabase.auth.currentUserOrNull()?.id ?: "" }
+
+    // LẮNG NGHE SỰ KIỆN TỪ CÀI ĐẶT HỆ THỐNG TRỞ VỀ (ON_RESUME)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val hasSystemPermission = checkNotificationPermission(context)
+                val wantsEnabledInApp = sharedPrefs.getBoolean("is_notif_enabled", false)
+
+                // Kịch bản 1: Ra ngoài Cài đặt tắt đi
+                if (!hasSystemPermission && wantsEnabledInApp) {
+                    notificationsEnabled = false
+                    sharedPrefs.edit().putBoolean("is_notif_enabled", false).apply()
+                    WorkManager.getInstance(context).cancelUniqueWork("WeatherMonitorTask")
+                    WorkManager.getInstance(context).cancelUniqueWork("DailyOutfitTask")
+                }
+                // Kịch bản 2: Ra ngoài Cài đặt lén bật lên
+                else if (hasSystemPermission && !wantsEnabledInApp) {
+                    notificationsEnabled = true
+                    sharedPrefs.edit().putBoolean("is_notif_enabled", true).apply()
+                    WorkerSetupHelper.setupWeatherMonitor(context)
+                    WorkerSetupHelper.setupDailyOutfitNotification(context)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // LAUNCHER XIN QUYỀN CÓ LƯU TRẠNG THÁI
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            notificationsEnabled = true
+            sharedPrefs.edit().putBoolean("is_notif_enabled", true).apply()
+            WorkerSetupHelper.setupWeatherMonitor(context)
+            WorkerSetupHelper.setupDailyOutfitNotification(context)
+        } else {
+            showSettingsDialog = true
+            notificationsEnabled = false
+            sharedPrefs.edit().putBoolean("is_notif_enabled", false).apply()
+        }
+    }
+
+    // --- HIỂN THỊ BOTTOM SHEET SỐ ĐO ---
     if (showMeasurementSheet && userProfile != null) {
         ModalBottomSheet(
             onDismissRequest = { showMeasurementSheet = false },
@@ -70,6 +153,27 @@ fun ProfileScreen(
                 onCancel = { showMeasurementSheet = false }
             )
         }
+    }
+
+    // --- HIỂN THỊ HỘP THOẠI XIN QUYỀN ---
+    if (showSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = { Text(text = "Enable Notifications") },
+            text = { Text(text = "The weather alert feature requires notification permission. Would you like to go to Settings to enable it again?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSettingsDialog = false
+                    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    }
+                    context.startActivity(intent)
+                }) { Text("Go to Settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettingsDialog = false }) { Text("Later") }
+            }
+        )
     }
 
     LazyColumn(
@@ -122,7 +226,7 @@ fun ProfileScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "A",
+                            userProfile?.fullName?.firstOrNull()?.uppercase() ?: "A",
                             fontSize = 40.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.secondary
@@ -151,14 +255,14 @@ fun ProfileScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = userProfile?.fullName ?: "Alex",
+                            text = userProfile?.fullName ?: "Loading...",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            supabase.auth.currentUserOrNull()?.email ?: "alex@gmail.com",
+                            supabase.auth.currentUserOrNull()?.email ?: "email@gmail.com",
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -184,12 +288,11 @@ fun ProfileScreen(
         item {
             SectionTitle("AI Personalization")
 
-            // 2. GẮN SỰ KIỆN ONCLICK ĐỂ MỞ BOTTOM SHEET
             SettingRow(
                 icon = Icons.Outlined.Straighten,
                 title = "My Measurements",
                 subtitle = if (userProfile != null)
-                    "${userProfile.heightCm.toInt()}cm, ${userProfile.weightKg.toInt()}kg, ${userProfile.bodyShape}"
+                    "${userProfile.heightCm?.toInt() ?: 0}cm, ${userProfile.weightKg?.toInt() ?: 0}kg, ${userProfile.bodyShape ?: ""}"
                 else "Loading...",
                 onClick = { showMeasurementSheet = true }
             )
@@ -202,14 +305,41 @@ fun ProfileScreen(
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
 
-        // --- SETTINGS SECTION ---
+        // --- APP SETTINGS SECTION ---
         item {
             SectionTitle("App Settings")
+
+            // XỬ LÝ SỰ KIỆN BẬT/TẮT THÔNG BÁO TẠI ĐÂY (ĐỒNG BỘ 2 CHIỀU)
             SettingToggleRow(
                 icon = Icons.Outlined.Notifications,
                 title = "Notifications",
                 isChecked = notificationsEnabled,
-                onCheckedChange = { notificationsEnabled = it })
+                onCheckedChange = { isTurningOn ->
+                    if (isTurningOn) {
+                        // KHI NGƯỜI DÙNG MUỐN BẬT
+                        if (checkNotificationPermission(context)) {
+                            // Máy đã cho phép -> Chỉ cần bật logic chạy ngầm trong app
+                            notificationsEnabled = true
+                            sharedPrefs.edit().putBoolean("is_notif_enabled", true).apply()
+                            WorkerSetupHelper.setupWeatherMonitor(context)
+                            WorkerSetupHelper.setupDailyOutfitNotification(context)
+                        } else {
+                            // Máy chưa cho phép -> Xin quyền
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                showSettingsDialog = true
+                            }
+                        }
+                    } else {
+                        // KHI NGƯỜI DÙNG MUỐN TẮT -> Ép mở Cài đặt thông báo của máy
+                        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        }
+                        context.startActivity(intent)
+                    }
+                }
+            )
 
             SettingToggleRow(
                 icon = Icons.Outlined.DarkMode,
@@ -239,6 +369,7 @@ fun ProfileScreen(
             OutlinedButton(
                 onClick = {
                     scope.launch {
+                        WorkManager.getInstance(context).cancelAllWork()
                         supabase.auth.signOut()
                         onLogoutSuccess()
                     }
@@ -263,7 +394,10 @@ fun ProfileScreen(
     }
 }
 
-// 3. TẠO GIAO DIỆN CHỈNH SỬA SỐ ĐO
+// -------------------------------------------------------------
+// CÁC THÀNH PHẦN UI PHỤ TRỢ
+// -------------------------------------------------------------
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeasurementEditSheetContent(
@@ -317,7 +451,6 @@ fun MeasurementEditSheetContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Dropdown chọn Body Shape
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },
@@ -368,7 +501,6 @@ fun MeasurementEditSheetContent(
             }
             Button(
                 onClick = {
-                    // Chuyển chuỗi thành Int trước khi lưu
                     onSave(heightInput.toIntOrNull(), weightInput.toIntOrNull(), selectedShape)
                 },
                 modifier = Modifier
@@ -396,19 +528,18 @@ fun SectionTitle(title: String) {
     )
 }
 
-// 4. SỬA HÀM SETTING ROW ĐỂ NHẬN SỰ KIỆN ONCLICK
 @Composable
 fun SettingRow(
     icon: ImageVector,
     title: String,
     subtitle: String? = null,
-    onClick: () -> Unit = {} // <-- Thêm biến này
+    onClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .clickable { onClick() } // <-- Gọi sự kiện ở đây
+            .clickable { onClick() }
             .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -455,7 +586,9 @@ fun SettingToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp, horizontal = 4.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onCheckedChange(!isChecked) }
+            .padding(vertical = 12.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -481,7 +614,7 @@ fun SettingToggleRow(
         )
         Switch(
             checked = isChecked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = { onCheckedChange(it) },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                 checkedTrackColor = MaterialTheme.colorScheme.secondary,
