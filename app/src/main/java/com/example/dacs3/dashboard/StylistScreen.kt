@@ -567,6 +567,7 @@ fun ChatBarSection(
     }
 }
 
+// GIAO DIỆN CHO BONG BÓNG TRONG CHAT
 @Composable
 fun ChatBubble(message: ChatMessage) {
     Row(
