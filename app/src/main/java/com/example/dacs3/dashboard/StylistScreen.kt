@@ -193,7 +193,7 @@ fun ContextBriefingCard(
             icon = Icons.Filled.WbSunny,
             iconColor = Color(0xFFFFA000),
             greeting = "Good morning, Duc Anh!",
-            message = "It's a fresh morning ($currentTemperature). You have an OS Exam at 9 AM. Your water-resistant Smart Casual look is ready.",
+            message = "It's a fresh morning ($currentTemperature). Let's pick a great outfit to start your day right!",
             buttonText = "View Morning Outfit",
             aiPrompt = "Show me the details of the Smart Casual outfit for my morning exam."
         )
