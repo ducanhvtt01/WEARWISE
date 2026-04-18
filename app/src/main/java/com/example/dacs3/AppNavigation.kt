@@ -39,10 +39,29 @@ fun AppNavigation(
     ) {
         composable("login") {
             LoginScreen(
+                showSplash = true,
                 onLoginSuccess = {
                     val session1 = supabase.auth.currentSessionOrNull()
                     if (session1 != null) scope.launch {
                         checkProfileAndNavigate(session1.user?.id, navController)
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = "login_no_splash",
+            enterTransition = { androidx.compose.animation.EnterTransition.None },
+            exitTransition = { androidx.compose.animation.ExitTransition.None },
+            popEnterTransition = { androidx.compose.animation.EnterTransition.None },
+            popExitTransition = { androidx.compose.animation.ExitTransition.None }
+        ) {
+            LoginScreen(
+                showSplash = false,
+                onLoginSuccess = {
+                    val session1 = supabase.auth.currentSessionOrNull()
+                    if (session1 != null) scope.launch {
+                        checkProfileAndNavigate(session1.user?.id, navController, "login_no_splash")
                     }
                 }
             )
@@ -62,13 +81,22 @@ fun AppNavigation(
             )
         }
 
-        composable("home") {
+        composable(
+            route = "home",
+            exitTransition = {
+                if (targetState.destination.route == "login_no_splash") {
+                    androidx.compose.animation.ExitTransition.None
+                } else {
+                    null // Dùng mặc định
+                }
+            }
+        ) {
             RequestWeatherPermissions()
             HomeUI(
                 isDarkMode = isDarkMode,
                 onThemeChange = onThemeChange,
                 onLogoutSuccess = {
-                    navController.navigate("login") { popUpTo("home") { inclusive = true } }
+                    navController.navigate("login_no_splash") { popUpTo("home") { inclusive = true } }
                 }
             )
         }
@@ -82,7 +110,7 @@ fun AppNavigation(
     }
 }
 
-suspend fun checkProfileAndNavigate(userId: String?, navController: NavHostController) {
+suspend fun checkProfileAndNavigate(userId: String?, navController: NavHostController, popUpRoute: String = "login") {
     if (userId == null) return
     try {
         val profile = supabase.from("profiles").select {
@@ -90,8 +118,8 @@ suspend fun checkProfileAndNavigate(userId: String?, navController: NavHostContr
         }.decodeSingleOrNull<Profile>()
 
         val destination = if (profile != null && !profile.gender.isNullOrBlank()) "home" else "survey"
-        navController.navigate(destination) { popUpTo("login") { inclusive = true } }
+        navController.navigate(destination) { popUpTo(popUpRoute) { inclusive = true } }
     } catch (e: Exception) {
-        navController.navigate("survey") { popUpTo("login") { inclusive = true } }
+        navController.navigate("survey") { popUpTo(popUpRoute) { inclusive = true } }
     }
 }

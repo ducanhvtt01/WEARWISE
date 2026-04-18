@@ -97,4 +97,5 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
-}
+    implementation("com.github.jeziellago:compose-markdown:0.5.4")
+    }

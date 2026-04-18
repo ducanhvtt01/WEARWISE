@@ -83,6 +83,7 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
                 unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
                 cursorColor = MidnightBlue,
                 focusedTextColor = MidnightBlue,
+                unfocusedTextColor = MidnightBlue
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Person, contentDescription = "")},
             trailingIcon = {
@@ -115,7 +116,8 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
                 focusedIndicatorColor = MidnightBlue,
                 unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
                 cursorColor = MidnightBlue,
-                focusedTextColor = MidnightBlue
+                focusedTextColor = MidnightBlue,
+                unfocusedTextColor = MidnightBlue
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Lock, contentDescription = "")},
             trailingIcon = {

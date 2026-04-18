@@ -57,3 +57,21 @@ data class Outfit(
     val bottom: ClothingItem,
     val shoes: ClothingItem
 )
+
+@Serializable
+data class ChatSession(
+    val id: String? = null, // Khóa chính (UUID)
+    @SerialName("user_id") val userId: String, // ID người dùng
+    val title: String = "New Conversation", // Tên cuộc trò chuyện
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null
+)
+
+@Serializable
+data class ChatMessageModel(
+    val id: String? = null, // Khóa chính
+    @SerialName("session_id") val sessionId: String, // Thuộc phiên chat nào
+    val role: String, // Chỉ nhận 'user' hoặc 'model'
+    val content: String, // Nội dung tin nhắn
+    @SerialName("created_at") val createdAt: String? = null
+)

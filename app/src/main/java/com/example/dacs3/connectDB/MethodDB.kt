@@ -5,7 +5,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.dacs3.dashboard.ChatMessage
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,14 +68,13 @@ class DashboardViewModel : ViewModel() {
             try {
                 // 1. Chuyển Bitmap thành ByteArray
                 val baos = ByteArrayOutputStream()
-                // Dùng PNG để giữ được nền trong suốt (không bị viền đen) nếu bạn đã làm tính năng xóa nền
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, baos)
                 val imageBytes = baos.toByteArray()
 
-                // 2. Tạo tên file duy nhất (vd: clothes_123456789.png)
+                // 2. Tạo tên file duy nhất
                 val fileName = "clothes_${System.currentTimeMillis()}.png"
 
-                // 3. Upload lên bucket có tên là "clothing_images"
+                // 3. Upload lên bucket
                 val bucket = supabase.storage.from("clothing_images")
                 bucket.upload(fileName, imageBytes)
 
@@ -82,12 +84,12 @@ class DashboardViewModel : ViewModel() {
                 // 5. Cập nhật URL vào object
                 val finalItem = clothingItem.copy(imageUrl = publicUrl)
 
-                // [ĐÃ SỬA]: Yêu cầu Supabase trả về item đã có ID thật
+                // Yêu cầu Supabase trả về item đã có ID thật
                 val savedItem = supabase.from("clothes").insert(finalItem) {
                     select()
                 }.decodeSingle<ClothingItem>()
 
-                // Cập nhật lại UI List với savedItem (Lúc này savedItem.id đã có mã số thật)
+                // Cập nhật lại UI List với savedItem
                 val currentList = _clothingItems.value.toMutableList()
                 currentList.add(0, savedItem)
                 _clothingItems.value = currentList
@@ -104,7 +106,7 @@ class DashboardViewModel : ViewModel() {
     fun addClothing(item: ClothingItem, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // [ĐÃ SỬA]: Yêu cầu Supabase trả về item đã có ID thật (dùng cho Undo khôi phục đồ)
+                // Yêu cầu Supabase trả về item đã có ID thật (dùng cho Undo khôi phục đồ)
                 val savedItem = supabase.from("clothes").insert(item) {
                     select()
                 }.decodeSingle<ClothingItem>()
@@ -121,7 +123,6 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
-    // Hàm cập nhật quần áo (dùng cho BottomSheet khi người dùng muốn điều chỉnh thông số quần áo)
     fun updateClothingItem(item: ClothingItem) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -141,7 +142,6 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
-    // Hàm xóa quần áo (dùng cho BottomSheet và SwipeToDismiss)
     fun deleteClothingItem(item: ClothingItem) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -158,12 +158,10 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
-    // Hàm cập nhật profile
     fun updateMeasurements(userId: String, height: Int, weight: Int, shape: String) {
         viewModelScope.launch {
             isUpdating = true
             try {
-                // Tạo map dữ liệu cập nhật khớp với tên cột trong SQL
                 val updateMap = mapOf(
                     "height_cm" to height,
                     "weight_kg" to weight,
@@ -175,7 +173,6 @@ class DashboardViewModel : ViewModel() {
                     filter { eq("id", userId) }
                 }
 
-                // Cập nhật lại state cục bộ để giao diện đổi ngay lập tức
                 userProfile = userProfile?.copy(
                     heightCm = height.toFloat(),
                     weightKg = weight.toFloat(),
@@ -185,6 +182,128 @@ class DashboardViewModel : ViewModel() {
                 e.printStackTrace()
             } finally {
                 isUpdating = false
+            }
+        }
+    }
+
+    // ==========================================
+    // XỬ LÝ LƯU TRỮ LỊCH SỬ CHAT AI
+    // ==========================================
+
+    var currentChatSessionId: String? = null
+
+    // 1. Biến lưu trữ danh sách các phiên chat cũ để hiển thị lên Sidebar
+    private val _chatSessions = MutableStateFlow<List<ChatSession>>(emptyList())
+    val chatSessions: StateFlow<List<ChatSession>> = _chatSessions.asStateFlow()
+
+    // 2. Hàm lấy danh sách các phiên chat từ Database
+    fun fetchChatSessions(userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val sessions = supabase.from("chat_sessions")
+                    .select {
+                        filter { eq("user_id", userId) }
+                        order("updated_at", order = Order.DESCENDING)
+                    }
+                    .decodeList<ChatSession>()
+                _chatSessions.value = sessions
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 3. Hàm tải lại tin nhắn của một Session cũ
+    fun loadChatMessages(sessionId: String, onLoaded: (List<ChatMessage>) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val messages = supabase.from("chat_messages")
+                    .select {
+                        filter { eq("session_id", sessionId) }
+                        order("created_at", order = Order.ASCENDING)
+                    }
+                    .decodeList<ChatMessageModel>()
+
+                val uiMessages = messages.map {
+                    ChatMessage(text = it.content, isFromUser = it.role == "user")
+                }
+
+                launch(Dispatchers.Main) {
+                    currentChatSessionId = sessionId
+                    onLoaded(uiMessages)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 4. Hàm lưu tin nhắn vào Database
+    fun saveChatToDatabase(userMessage: String, aiMessage: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val userId = supabase.auth.currentUserOrNull()?.id ?: return@launch
+
+                if (currentChatSessionId == null) {
+                    // --- BẮT ĐẦU: LOGIC TẠO TIÊU ĐỀ THÔNG MINH ---
+                    // Cắt lấy tối đa 35 ký tự đầu tiên của prompt, nếu dài hơn thì thêm dấu "..."
+                    val smartTitle = if (userMessage.length > 35) {
+                        userMessage.substring(0, 35).trim() + "..."
+                    } else {
+                        userMessage
+                    }.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } // Viết hoa chữ cái đầu
+                    // --- KẾT THÚC LOGIC ---
+
+                    val newSession = ChatSession(
+                        userId = userId,
+                        title = smartTitle // Sử dụng tiêu đề thông minh vừa tạo
+                    )
+
+                    val insertedSession = supabase.from("chat_sessions")
+                        .insert(newSession) { select() }.decodeSingle<ChatSession>()
+                    currentChatSessionId = insertedSession.id
+                }
+
+                currentChatSessionId?.let { sessionId ->
+                    val userRecord = ChatMessageModel(
+                        sessionId = sessionId,
+                        role = "user",
+                        content = userMessage
+                    )
+                    val aiRecord = ChatMessageModel(
+                        sessionId = sessionId,
+                        role = "model",
+                        content = aiMessage
+                    )
+
+                    supabase.from("chat_messages").insert(listOf(userRecord, aiRecord))
+
+                    // Làm mới lại Sidebar để hiện cuộc trò chuyện này lên đầu
+                    fetchChatSessions(userId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 5. Hàm reset phiên chat (Tạo đoạn chat mới)
+    fun resetChatSession() {
+        currentChatSessionId = null
+    }
+
+    // 6. Hàm xóa lịch sử chat trên Database
+    fun deleteChatSession(sessionId: String, userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Xóa tin nhắn trước (để không bị lỗi khóa ngoại reference), sau đó xóa Session
+                supabase.from("chat_messages").delete { filter { eq("session_id", sessionId) } }
+                supabase.from("chat_sessions").delete { filter { eq("id", sessionId) } }
+
+                // Cập nhật lại danh sách bên Sidebar để dòng chat vừa xóa biến mất
+                fetchChatSessions(userId)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

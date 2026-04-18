@@ -12,9 +12,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -70,11 +72,9 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // SỬ DỤNG SHAREDPREFERENCES ĐỂ LƯU "LỰA CHỌN CỦA NGƯỜI DÙNG"
     val sharedPrefs =
         remember { context.getSharedPreferences("WearwisePrefs", Context.MODE_PRIVATE) }
 
-    // STATE THÔNG BÁO: Chỉ bật khi người dùng đã gạt bật VÀ Hệ thống cho phép
     var notificationsEnabled by remember {
         mutableStateOf(
             sharedPrefs.getBoolean(
@@ -86,26 +86,23 @@ fun ProfileScreen(
 
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showMeasurementSheet by remember { mutableStateOf(false) }
+    var showStyleSheet by remember { mutableStateOf(false) } // State mới cho Style Preferences
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val userId = remember { supabase.auth.currentUserOrNull()?.id ?: "" }
 
-    // LẮNG NGHE SỰ KIỆN TỪ CÀI ĐẶT HỆ THỐNG TRỞ VỀ (ON_RESUME)
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 val hasSystemPermission = checkNotificationPermission(context)
                 val wantsEnabledInApp = sharedPrefs.getBoolean("is_notif_enabled", false)
 
-                // Kịch bản 1: Ra ngoài Cài đặt tắt đi
                 if (!hasSystemPermission && wantsEnabledInApp) {
                     notificationsEnabled = false
                     sharedPrefs.edit().putBoolean("is_notif_enabled", false).apply()
                     WorkManager.getInstance(context).cancelUniqueWork("WeatherMonitorTask")
                     WorkManager.getInstance(context).cancelUniqueWork("DailyOutfitTask")
-                }
-                // Kịch bản 2: Ra ngoài Cài đặt lén bật lên
-                else if (hasSystemPermission && !wantsEnabledInApp) {
+                } else if (hasSystemPermission && !wantsEnabledInApp) {
                     notificationsEnabled = true
                     sharedPrefs.edit().putBoolean("is_notif_enabled", true).apply()
                     WorkerSetupHelper.setupWeatherMonitor(context)
@@ -114,12 +111,9 @@ fun ProfileScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // LAUNCHER XIN QUYỀN CÓ LƯU TRẠNG THÁI
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -135,7 +129,7 @@ fun ProfileScreen(
         }
     }
 
-    // --- HIỂN THỊ BOTTOM SHEET SỐ ĐO ---
+    // --- HIỂN THỊ BOTTOM SHEET SỐ ĐO (MEASUREMENTS) ---
     if (showMeasurementSheet && userProfile != null) {
         ModalBottomSheet(
             onDismissRequest = { showMeasurementSheet = false },
@@ -144,10 +138,9 @@ fun ProfileScreen(
         ) {
             MeasurementEditSheetContent(
                 currentProfile = userProfile,
-                onSave = { h, w, s ->
-                    if (h != null && w != null && s != null) {
-                        viewModel.updateMeasurements(userId, h, w, s)
-                    }
+                onSave = { h, w, shape, skin, top, bottom, shoe ->
+                    // LƯU Ý: Bạn cần vào DashboardViewModel để cập nhật hàm này cho nhận đủ tham số
+                    // viewModel.updateMeasurements(userId, h, w, shape, skin, top, bottom, shoe)
                     showMeasurementSheet = false
                 },
                 onCancel = { showMeasurementSheet = false }
@@ -155,7 +148,25 @@ fun ProfileScreen(
         }
     }
 
-    // --- HIỂN THỊ HỘP THOẠI XIN QUYỀN ---
+    // --- HIỂN THỊ BOTTOM SHEET SỞ THÍCH (STYLE PREFERENCES) ---
+    if (showStyleSheet && userProfile != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showStyleSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            StylePreferencesSheetContent(
+                currentProfile = userProfile,
+                onSave = { styles, colors ->
+                    // LƯU Ý: Tạo hàm updateStylePreferences trong DashboardViewModel
+                    // viewModel.updateStylePreferences(userId, styles, colors)
+                    showStyleSheet = false
+                },
+                onCancel = { showStyleSheet = false }
+            )
+        }
+    }
+
     if (showSettingsDialog) {
         AlertDialog(
             onDismissRequest = { showSettingsDialog = false },
@@ -231,22 +242,6 @@ fun ProfileScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.secondary
                         )
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset(x = 4.dp, y = 4.dp)
-                                .size(32.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape)
-                                .clickable { },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.Edit,
-                                "Edit",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -288,18 +283,37 @@ fun ProfileScreen(
         item {
             SectionTitle("AI Personalization")
 
+            // Tóm tắt Measurements
+            val measureSubtitle = if (userProfile != null) {
+                "${userProfile.heightCm.toInt()}cm, ${userProfile.weightKg.toInt()}kg, ${userProfile.bodyShape}\n" +
+                        "Sizes: Top ${userProfile.topSize}, Bottom ${userProfile.bottomSize}, Shoe EU ${userProfile.shoeSizeEu}"
+            } else "Loading..."
+
             SettingRow(
                 icon = Icons.Outlined.Straighten,
                 title = "My Measurements",
-                subtitle = if (userProfile != null)
-                    "${userProfile.heightCm?.toInt() ?: 0}cm, ${userProfile.weightKg?.toInt() ?: 0}kg, ${userProfile.bodyShape ?: ""}"
-                else "Loading...",
+                subtitle = measureSubtitle,
                 onClick = { showMeasurementSheet = true }
             )
+
+            // Tóm tắt Style Preferences
+            val styleSubtitle = if (userProfile != null) {
+                val styles =
+                    if (userProfile.favoriteStyles.isNotEmpty()) userProfile.favoriteStyles.joinToString(
+                        ", "
+                    ) else "None"
+                val colors =
+                    if (userProfile.favoriteColors.isNotEmpty()) userProfile.favoriteColors.joinToString(
+                        ", "
+                    ) else "None"
+                "Styles: $styles\nColors: $colors"
+            } else "Loading..."
+
             SettingRow(
                 icon = Icons.Outlined.Style,
                 title = "Style Preferences",
-                subtitle = "Minimalist, Smart Casual"
+                subtitle = styleSubtitle,
+                onClick = { showStyleSheet = true } // Bấm vào để mở bảng chọn Style
             )
         }
 
@@ -309,22 +323,18 @@ fun ProfileScreen(
         item {
             SectionTitle("App Settings")
 
-            // XỬ LÝ SỰ KIỆN BẬT/TẮT THÔNG BÁO TẠI ĐÂY (ĐỒNG BỘ 2 CHIỀU)
             SettingToggleRow(
                 icon = Icons.Outlined.Notifications,
                 title = "Notifications",
                 isChecked = notificationsEnabled,
                 onCheckedChange = { isTurningOn ->
                     if (isTurningOn) {
-                        // KHI NGƯỜI DÙNG MUỐN BẬT
                         if (checkNotificationPermission(context)) {
-                            // Máy đã cho phép -> Chỉ cần bật logic chạy ngầm trong app
                             notificationsEnabled = true
                             sharedPrefs.edit().putBoolean("is_notif_enabled", true).apply()
                             WorkerSetupHelper.setupWeatherMonitor(context)
                             WorkerSetupHelper.setupDailyOutfitNotification(context)
                         } else {
-                            // Máy chưa cho phép -> Xin quyền
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             } else {
@@ -332,7 +342,6 @@ fun ProfileScreen(
                             }
                         }
                     } else {
-                        // KHI NGƯỜI DÙNG MUỐN TẮT -> Ép mở Cài đặt thông báo của máy
                         val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                             putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
                         }
@@ -395,27 +404,38 @@ fun ProfileScreen(
 }
 
 // -------------------------------------------------------------
-// CÁC THÀNH PHẦN UI PHỤ TRỢ
+// 1. CẬP NHẬT BOTTOM SHEET CHO "MY MEASUREMENTS"
 // -------------------------------------------------------------
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeasurementEditSheetContent(
     currentProfile: Profile,
-    onSave: (Int?, Int?, String?) -> Unit,
+    onSave: (Int?, Int?, String, String, String, String, Int?) -> Unit,
     onCancel: () -> Unit
 ) {
-    var heightInput by remember { mutableStateOf(currentProfile.heightCm?.toString() ?: "") }
-    var weightInput by remember { mutableStateOf(currentProfile.weightKg?.toString() ?: "") }
-    var selectedShape by remember { mutableStateOf(currentProfile.bodyShape ?: "Rectangle") }
+    var heightInput by remember { mutableStateOf(currentProfile.heightCm.toInt().toString()) }
+    var weightInput by remember { mutableStateOf(currentProfile.weightKg.toInt().toString()) }
+    var shoeSizeInput by remember { mutableStateOf(currentProfile.shoeSizeEu.toString()) }
 
-    val bodyShapes = listOf("Rectangle", "Triangle", "Hourglass", "Inverted Triangle", "Oval")
-    var expanded by remember { mutableStateOf(false) }
+    var selectedShape by remember {
+        mutableStateOf(currentProfile.bodyShape.takeIf { it.isNotBlank() } ?: "Rectangle")
+    }
+    var selectedSkinTone by remember {
+        mutableStateOf(currentProfile.skinTone.takeIf { it.isNotBlank() } ?: "Neutral")
+    }
+    var selectedTopSize by remember {
+        mutableStateOf(currentProfile.topSize.takeIf { it.isNotBlank() } ?: "M")
+    }
+    var selectedBottomSize by remember {
+        mutableStateOf(currentProfile.bottomSize.takeIf { it.isNotBlank() } ?: "M")
+    }
+
+    val scrollState = rememberScrollState() // Thêm thanh cuộn vì nội dung dài
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+            .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -426,10 +446,7 @@ fun MeasurementEditSheetContent(
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             OutlinedTextField(
                 value = heightInput,
                 onValueChange = { heightInput = it },
@@ -438,7 +455,6 @@ fun MeasurementEditSheetContent(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp)
             )
-
             OutlinedTextField(
                 value = weightInput,
                 onValueChange = { weightInput = it },
@@ -451,68 +467,238 @@ fun MeasurementEditSheetContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            OutlinedTextField(
-                value = selectedShape,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Body Shape") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth()
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                bodyShapes.forEach { shape ->
-                    DropdownMenuItem(
-                        text = { Text(shape) },
-                        onClick = {
-                            selectedShape = shape
-                            expanded = false
-                        }
-                    )
-                }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(modifier = Modifier.weight(1f)) {
+                DropdownSelector(
+                    "Body Shape",
+                    listOf("Rectangle", "Triangle", "Hourglass", "Inverted Triangle", "Oval"),
+                    selectedShape
+                ) { selectedShape = it }
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                DropdownSelector(
+                    "Skin Tone",
+                    listOf("Cool", "Warm", "Neutral", "Fair", "Medium", "Dark"),
+                    selectedSkinTone
+                ) { selectedSkinTone = it }
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(modifier = Modifier.weight(1f)) {
+                DropdownSelector(
+                    "Top Size",
+                    listOf("XS", "S", "M", "L", "XL", "XXL"),
+                    selectedTopSize
+                ) { selectedTopSize = it }
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                DropdownSelector(
+                    "Bottom Size",
+                    listOf("28", "29", "30", "31", "32", "34", "36"),
+                    selectedBottomSize
+                ) { selectedBottomSize = it }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = shoeSizeInput,
+            onValueChange = { shoeSizeInput = it },
+            label = { Text("Shoe Size (EU)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+
         Spacer(modifier = Modifier.height(32.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             OutlinedButton(
                 onClick = onCancel,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(50.dp),
+                modifier = Modifier.weight(1f).height(50.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text("Cancel")
             }
             Button(
                 onClick = {
-                    onSave(heightInput.toIntOrNull(), weightInput.toIntOrNull(), selectedShape)
+                    onSave(
+                        heightInput.toIntOrNull(),
+                        weightInput.toIntOrNull(),
+                        selectedShape,
+                        selectedSkinTone,
+                        selectedTopSize,
+                        selectedBottomSize,
+                        shoeSizeInput.toIntOrNull()
+                    )
                 },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(50.dp),
+                modifier = Modifier.weight(1f).height(50.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text("Save Changes")
             }
         }
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// -------------------------------------------------------------
+// 2. TẠO MỚI BOTTOM SHEET CHO "STYLE PREFERENCES"
+// -------------------------------------------------------------
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun StylePreferencesSheetContent(
+    currentProfile: Profile,
+    onSave: (List<String>, List<String>) -> Unit,
+    onCancel: () -> Unit
+) {
+    val availableStyles = listOf(
+        "Smart Casual",
+        "Minimalist",
+        "Streetwear",
+        "Vintage",
+        "Athleisure",
+        "Classic",
+        "Grunge"
+    )
+    val availableColors =
+        listOf("Black", "White", "Navy", "Beige", "Gray", "Red", "Blue", "Green", "Earth Tones")
+
+    // Dùng mutableStateListOf để dễ thêm/xoá item khi người dùng click
+    val selectedStyles =
+        remember { mutableStateListOf(*currentProfile.favoriteStyles.toTypedArray()) }
+    val selectedColors =
+        remember { mutableStateListOf(*currentProfile.favoriteColors.toTypedArray()) }
+
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+            .verticalScroll(scrollState),
+    ) {
+        Text(
+            text = "Style Preferences",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 24.dp).align(Alignment.CenterHorizontally)
+        )
+
+        Text(
+            "Favorite Styles",
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            availableStyles.forEach { style ->
+                FilterChip(
+                    selected = selectedStyles.contains(style),
+                    onClick = {
+                        if (selectedStyles.contains(style)) selectedStyles.remove(style)
+                        else selectedStyles.add(style)
+                    },
+                    label = { Text(style) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            "Favorite Colors",
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            availableColors.forEach { color ->
+                FilterChip(
+                    selected = selectedColors.contains(color),
+                    onClick = {
+                        if (selectedColors.contains(color)) selectedColors.remove(color)
+                        else selectedColors.add(color)
+                    },
+                    label = { Text(color) }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f).height(50.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Cancel")
+            }
+            Button(
+                onClick = { onSave(selectedStyles.toList(), selectedColors.toList()) },
+                modifier = Modifier.weight(1f).height(50.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Save Changes")
+            }
+        }
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+// -------------------------------------------------------------
+// UI PHỤ TRỢ
+// -------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DropdownSelector(
+    label: String,
+    options: List<String>,
+    selectedOption: String,
+    onOptionSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = selectedOption,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
     }
 }
 

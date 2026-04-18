@@ -57,7 +57,8 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                 focusedIndicatorColor = MidnightBlue,
                 unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
                 cursorColor = MidnightBlue,
-                focusedTextColor = MidnightBlue
+                focusedTextColor = MidnightBlue,
+                unfocusedTextColor = MidnightBlue
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Person, contentDescription = "")},
             trailingIcon = { IconButton(onClick = {
@@ -80,7 +81,8 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                 focusedIndicatorColor = MidnightBlue,
                 unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
                 cursorColor = MidnightBlue,
-                focusedTextColor = MidnightBlue
+                focusedTextColor = MidnightBlue,
+                unfocusedTextColor = MidnightBlue
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Person, contentDescription = "")},
             trailingIcon = {
@@ -105,7 +107,8 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                 focusedIndicatorColor = MidnightBlue,
                 unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
                 cursorColor = MidnightBlue,
-                focusedTextColor = MidnightBlue
+                focusedTextColor = MidnightBlue,
+                unfocusedTextColor = MidnightBlue
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Lock, contentDescription = "")},
             trailingIcon = {
@@ -138,7 +141,8 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                 focusedIndicatorColor = MidnightBlue,
                 unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
                 cursorColor = MidnightBlue,
-                focusedTextColor = MidnightBlue
+                focusedTextColor = MidnightBlue,
+                unfocusedTextColor = MidnightBlue
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Lock, contentDescription = "")},
             trailingIcon = {

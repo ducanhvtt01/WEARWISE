@@ -40,10 +40,10 @@ enum class AuthSheetType {LOGIN, REGISTER}
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) { // Nhận callback từ MainActivity
+fun LoginScreen(showSplash: Boolean = true, onLoginSuccess: () -> Unit) { // Nhận callback từ MainActivity
     val context = LocalContext.current
 
-    var showIntro by remember { mutableStateOf(true) }
+    var showIntro by remember { mutableStateOf(showSplash) }
 
     // Quản lý ExoPlayer trong Compose
     val exoPlayer = remember {
