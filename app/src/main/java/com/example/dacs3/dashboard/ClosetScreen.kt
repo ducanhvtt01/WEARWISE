@@ -41,10 +41,21 @@ import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.serialization.SerialName
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.os.Build
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import io.github.jan.supabase.gotrue.auth
+import com.example.dacs3.connectDB.supabase
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClosetScreen(viewModel: DashboardViewModel) {
+fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit = {}) {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = listOf("All", "Top", "Bottom", "Outerwear", "Shoes", "Accessories")
 
@@ -56,6 +67,7 @@ fun ClosetScreen(viewModel: DashboardViewModel) {
 
     // --- STATE CHO BOTTOM SHEET ---
     var showItemSheet by remember { mutableStateOf(false) }
+    var showAddManualSheet by remember { mutableStateOf(false) }
     var selectedItemToEdit by remember { mutableStateOf<ClothingItem?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -99,6 +111,7 @@ fun ClosetScreen(viewModel: DashboardViewModel) {
                 },
                 onStyleWithAI = {
                     showItemSheet = false
+                    onNavigateToStylist()
                 },
                 onDelete = {
                     val itemToRemove = selectedItemToEdit!!
@@ -116,6 +129,28 @@ fun ClosetScreen(viewModel: DashboardViewModel) {
                         }
                     }
                 }
+            )
+        }
+    }
+
+    // --- BOTTOM SHEET HIỂN THỊ THÊM ĐỒ THỦ CÔNG ---
+    if (showAddManualSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAddManualSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            AddManualSheetContent(
+                onSave = { newItem, bitmap ->
+                    if (bitmap != null) {
+                        viewModel.uploadAndSaveClothes(bitmap, newItem) {}
+                    } else {
+                        viewModel.addClothing(newItem) {}
+                    }
+                    showAddManualSheet = false
+                    scope.launch { snackbarHostState.showSnackbar("Added new item!") }
+                },
+                onCancel = { showAddManualSheet = false }
             )
         }
     }
@@ -273,7 +308,7 @@ fun ClosetScreen(viewModel: DashboardViewModel) {
                         modifier = Modifier.height(200.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                        onClick = { /* TODO: Mở màn hình thêm đồ */ }
+                        onClick = { showAddManualSheet = true }
                     ) {
                         Column(
                             modifier = Modifier.fillMaxSize(),
@@ -660,6 +695,176 @@ fun ItemDetailSheetContent(
             Text("Delete Item", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
 
+        Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+fun AddManualSheetContent(
+    onSave: (ClothingItem, Bitmap?) -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var selectedImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            selectedImageUri = uri
+            try {
+                selectedBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val source = ImageDecoder.createSource(context.contentResolver, uri)
+                    ImageDecoder.decodeBitmap(source)
+                } else {
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    var editName by remember { mutableStateOf("") }
+    var editCategory by remember { mutableStateOf("Top") }
+    var editColor by remember { mutableStateOf("") }
+    var editSeasons by remember { mutableStateOf(setOf<String>()) }
+    var editOccasions by remember { mutableStateOf(setOf<String>()) }
+
+    val suggestedCategories = listOf("Top", "Bottom", "Outerwear", "Shoes", "Accessories")
+    val suggestedSeasons = listOf("Spring", "Summer", "Autumn", "Winter")
+    val suggestedOccasions = listOf("Casual", "Work", "Party", "Sport", "Formal")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 24.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "Add New Clothing",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        // IMAGE PREVIEW / PICKER
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(250.dp)
+                .clickable {
+                    photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            if (selectedImageUri != null) {
+                AsyncImage(
+                    model = selectedImageUri,
+                    contentDescription = "Selected Image",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Filled.Add, contentDescription = "Add image", modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Tap to select image", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = editName,
+            onValueChange = { editName = it },
+            label = { Text("Item Name") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text("Category", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(suggestedCategories) { cat ->
+                CustomChip(text = cat, isSelected = editCategory == cat, onClick = { editCategory = cat })
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = editColor,
+            onValueChange = { editColor = it },
+            label = { Text("Main Color") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text("Seasons", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(suggestedSeasons) { season ->
+                val isSelected = editSeasons.contains(season)
+                CustomChip(text = season, isSelected = isSelected, onClick = { editSeasons = if (isSelected) editSeasons - season else editSeasons + season })
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Occasions", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(suggestedOccasions) { occasion ->
+                val isSelected = editOccasions.contains(occasion)
+                CustomChip(text = occasion, isSelected = isSelected, onClick = { editOccasions = if (isSelected) editOccasions - occasion else editOccasions + occasion })
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Button(
+            onClick = {
+                val userId = supabase.auth.currentSessionOrNull()?.user?.id ?: ""
+                val newItem = ClothingItem(
+                    userId = userId,
+                    clothes_name = editName.ifEmpty { "New Item" },
+                    category = editCategory,
+                    mainColor = editColor,
+                    seasons = editSeasons.toList(),
+                    occasions = editOccasions.toList(),
+                    imageUrl = "" // Image url will be updated after upload
+                )
+                onSave(newItem, selectedBitmap)
+            },
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text("Save Item", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(
+            onClick = onCancel,
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.secondary)
+        ) {
+            Text("Cancel", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+        
         Spacer(modifier = Modifier.height(40.dp))
     }
 }

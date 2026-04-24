@@ -17,9 +17,9 @@ class OutfitHybridRecommender(private val model: Sequential) {
         // Chỉ lấy đồ đúng mùa
         val filteredItems = wardrobe.filter { it.seasons?.contains(targetSeason) == true }
 
-        val tops = filteredItems.filter { it.category.equals("top", true) }
-        val bottoms = filteredItems.filter { it.category.equals("bottom", true) }
-        val shoes = filteredItems.filter { it.category.equals("shoes", true) }
+        val tops = filteredItems.filter { it.category.equals("top", true) }.shuffled().take(10)
+        val bottoms = filteredItems.filter { it.category.equals("bottom", true) }.shuffled().take(10)
+        val shoes = filteredItems.filter { it.category.equals("shoes", true) }.shuffled().take(5)
 
         val rankedOutfits = mutableListOf<Pair<Outfit, Float>>()
 

@@ -43,7 +43,7 @@ class DailyOutfitWorker(
             var weatherCondition = "Clear"
             var temp = "25°C"
             if (location != null) {
-                val weatherApiKey = "a2ae8f3c11d5bff557f2e81f52a543db"
+                val weatherApiKey = com.example.dacs3.BuildConfig.WEATHER_API_KEY
                 val response = RetrofitInstance.api.getWeatherByLocation(
                     location.first,
                     location.second,
@@ -68,7 +68,7 @@ class DailyOutfitWorker(
             // LƯU Ý: Thay "YOUR_GEMINI_API_KEY" bằng key thật của bạn lấy từ Google AI Studio
             val generativeModel = GenerativeModel(
                 modelName = "gemini-2.5-flash",
-                apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8"
+                apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
             )
 
             val prompt = """

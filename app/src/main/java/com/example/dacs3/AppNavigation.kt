@@ -91,7 +91,7 @@ fun AppNavigation(
                 }
             }
         ) {
-            RequestWeatherPermissions()
+            RequestAppPermissions()
             HomeUI(
                 isDarkMode = isDarkMode,
                 onThemeChange = onThemeChange,

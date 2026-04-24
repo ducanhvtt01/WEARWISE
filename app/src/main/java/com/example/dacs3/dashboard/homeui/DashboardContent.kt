@@ -59,12 +59,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dacs3.connectDB.ClothingItem
 import com.example.dacs3.connectDB.Profile
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardContent(currentProfile: Profile?) {
+fun DashboardContent(currentProfile: Profile?, closetItems: List<ClothingItem>) {
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
 
@@ -72,6 +73,16 @@ fun DashboardContent(currentProfile: Profile?) {
     var showEventSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isLocationDenied by remember { mutableStateOf(false) }
+
+    var suggestedTop by remember { mutableStateOf<ClothingItem?>(null) }
+    var suggestedBottom by remember { mutableStateOf<ClothingItem?>(null) }
+    var suggestedShoes by remember { mutableStateOf<ClothingItem?>(null) }
+
+    androidx.compose.runtime.LaunchedEffect(closetItems, selectedMood, selectedEvent) {
+        suggestedTop = closetItems.filter { it.category.equals("top", true) }.randomOrNull()
+        suggestedBottom = closetItems.filter { it.category.equals("bottom", true) }.randomOrNull()
+        suggestedShoes = closetItems.filter { it.category.equals("shoes", true) }.randomOrNull()
+    }
 
     val haptic = LocalHapticFeedback.current
     val uriHandler = LocalUriHandler.current
@@ -537,33 +548,53 @@ fun DashboardContent(currentProfile: Profile?) {
                         modifier = Modifier.padding(bottom = 20.dp)
                     )
 
-                    OutfitItemPlaceholder(
-                        "White Oxford Shirt",
-                        Icons.Outlined.Checkroom,
-                        "From your closet",
-                        MaterialTheme.colorScheme.secondaryContainer,
-                        MaterialTheme.colorScheme.secondary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutfitItemPlaceholder(
-                        "Navy Tailored Trousers",
-                        Icons.Filled.Checkroom,
-                        "From your closet",
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutfitItemPlaceholder(
-                        "Brown Leather Loafers",
-                        Icons.Outlined.DirectionsWalk,
-                        "From your closet",
-                        MaterialTheme.colorScheme.tertiaryContainer,
-                        Color(0xFFFF9800)
-                    )
+                    if (suggestedTop != null) {
+                        OutfitItemPlaceholder(
+                            suggestedTop!!.clothes_name,
+                            Icons.Outlined.Checkroom,
+                            "Top • ${suggestedTop!!.mainColor}",
+                            MaterialTheme.colorScheme.secondaryContainer,
+                            MaterialTheme.colorScheme.secondary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    if (suggestedBottom != null) {
+                        OutfitItemPlaceholder(
+                            suggestedBottom!!.clothes_name,
+                            Icons.Filled.Checkroom,
+                            "Bottom • ${suggestedBottom!!.mainColor}",
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    if (suggestedShoes != null) {
+                        OutfitItemPlaceholder(
+                            suggestedShoes!!.clothes_name,
+                            Icons.Outlined.DirectionsWalk,
+                            "Shoes • ${suggestedShoes!!.mainColor}",
+                            MaterialTheme.colorScheme.tertiaryContainer,
+                            Color(0xFFFF9800)
+                        )
+                    }
+
+                    if (suggestedTop == null && suggestedBottom == null && suggestedShoes == null) {
+                        Text(
+                            "Add some clothes to your closet first!",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 14.sp
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
-                        onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                        onClick = { 
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress) 
+                            suggestedTop = closetItems.filter { it.category.equals("top", true) }.randomOrNull()
+                            suggestedBottom = closetItems.filter { it.category.equals("bottom", true) }.randomOrNull()
+                            suggestedShoes = closetItems.filter { it.category.equals("shoes", true) }.randomOrNull()
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()
                     ) {
@@ -601,7 +632,17 @@ fun DashboardContent(currentProfile: Profile?) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                val stats = listOf("Tops" to "12", "Bottoms" to "8", "Shoes" to "5", "Accs" to "10")
+                val topsCount = closetItems.count { it.category.equals("top", ignoreCase = true) }
+                val bottomsCount = closetItems.count { it.category.equals("bottom", ignoreCase = true) }
+                val shoesCount = closetItems.count { it.category.equals("shoes", ignoreCase = true) }
+                val accsCount = closetItems.count { it.category.equals("accessories", ignoreCase = true) }
+
+                val stats = listOf(
+                    "Tops" to topsCount.toString(), 
+                    "Bottoms" to bottomsCount.toString(), 
+                    "Shoes" to shoesCount.toString(), 
+                    "Accs" to accsCount.toString()
+                )
                 items(stats.size) { index ->
                     StatCard(stats[index].first, stats[index].second)
                 }

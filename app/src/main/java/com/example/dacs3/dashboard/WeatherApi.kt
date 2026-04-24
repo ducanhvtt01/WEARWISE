@@ -77,7 +77,7 @@ class WeatherViewModel : ViewModel() {
     private val _cityName = MutableStateFlow("Loading...")
     val cityName: StateFlow<String> = _cityName
 
-    private val myApiKey = "a2ae8f3c11d5bff557f2e81f52a543db"
+    private val myApiKey = com.example.dacs3.BuildConfig.WEATHER_API_KEY
 
     fun fetchWeather() {
         viewModelScope.launch {

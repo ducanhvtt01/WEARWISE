@@ -134,7 +134,7 @@ fun StylistScreen(
 
         GenerativeModel(
             modelName = "gemini-2.5-flash",
-            apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8",
+            apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
             systemInstruction = content {
                 text(
                     """
@@ -575,7 +575,7 @@ fun StylistScreen(
                             try {
                                 val generativeModelPack = GenerativeModel(
                                     modelName = "gemini-2.5-flash",
-                                    apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8"
+                                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
                                 )
 
                                 val myClosetInventory =

@@ -96,7 +96,7 @@ fun HomeUI(
                 try {
                     val generativeModel = GenerativeModel(
                         modelName = "gemini-2.5-flash",
-                        apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8",
+                        apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
                         generationConfig = generationConfig {
                             temperature = 0.2f
                             responseMimeType = "application/json"
@@ -220,7 +220,7 @@ fun HomeUI(
                     .padding(innerPadding)
             ) {
                 when (selectedTab) {
-                    0 -> DashboardContent(userProfile)
+                    0 -> DashboardContent(userProfile, closetItems)
                     1 -> ClosetScreen(viewModel = viewModel) // [SỬA ĐỔI] TRUYỀN VIEWMODEL VÀO CLOSET SCREEN
                     2 -> StylistScreen()
                     3 -> ProfileScreen(
@@ -335,7 +335,7 @@ fun HomeUI(
                                             try {
                                                 val generativeModel = GenerativeModel(
                                                     modelName = "gemini-2.5-flash",
-                                                    apiKey = "AIzaSyCYi0mC2bYHbxy3y1Ynv1xZNfoB5bOmge8"
+                                                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
                                                 )
 
                                                 // Gom dữ liệu tủ đồ hiện tại thành chuỗi Text

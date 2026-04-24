@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
 
 @Composable
-fun RequestWeatherPermissions() {
+fun RequestAppPermissions() {
     val context = LocalContext.current
     var showSettingsDialog by remember { mutableStateOf(false) }
 

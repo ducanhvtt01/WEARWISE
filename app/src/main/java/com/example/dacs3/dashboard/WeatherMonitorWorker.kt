@@ -38,7 +38,7 @@ class WeatherMonitorWorker(
             }
 
             val (lat, lon) = location
-            val apiKey = "a2ae8f3c11d5bff557f2e81f52a543db"
+            val apiKey = com.example.dacs3.BuildConfig.WEATHER_API_KEY
 
             // 2. Gọi API bằng Kinh độ (lon) và Vĩ độ (lat)
             val response = RetrofitInstance.api.getWeatherByLocation(lat, lon, apiKey)
