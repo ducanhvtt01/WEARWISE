@@ -26,6 +26,10 @@ class DashboardViewModel : ViewModel() {
     private val _clothingItems = MutableStateFlow<List<ClothingItem>>(emptyList())
     val clothingItems: StateFlow<List<ClothingItem>> = _clothingItems.asStateFlow()
 
+    // State cho Outfit Canvas
+    val aiCanvasOutfit = MutableStateFlow<Outfit?>(null)
+    var isCanvasLoading by mutableStateOf(false)
+
     // Hàm lấy profile từ Supabase
     fun getProfile(userId: String) {
         viewModelScope.launch {
@@ -49,6 +53,7 @@ class DashboardViewModel : ViewModel() {
                         .select {
                             filter {
                                 eq("user_id", userId)
+                                neq("status", "unactive")
                             }
                         }
                         .decodeList<ClothingItem>()
@@ -66,13 +71,22 @@ class DashboardViewModel : ViewModel() {
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // 1. Chuyển Bitmap thành ByteArray
+                // 1. Tối ưu hóa Bitmap: Resize (giới hạn 1024x1024) và chuyển sang JPEG
+                val maxSize = 1024
+                var finalBitmap = bitmap
+                if (bitmap.width > maxSize || bitmap.height > maxSize) {
+                    val ratio = Math.min(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height)
+                    val width = (bitmap.width * ratio).toInt()
+                    val height = (bitmap.height * ratio).toInt()
+                    finalBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, width, height, true)
+                }
+                
                 val baos = ByteArrayOutputStream()
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, baos)
+                finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos)
                 val imageBytes = baos.toByteArray()
 
-                // 2. Tạo tên file duy nhất
-                val fileName = "clothes_${System.currentTimeMillis()}.png"
+                // 2. Tạo tên file duy nhất (dùng đuôi .jpg)
+                val fileName = "clothes_${System.currentTimeMillis()}.jpg"
 
                 // 3. Upload lên bucket
                 val bucket = supabase.storage.from("clothing_images")
@@ -146,7 +160,9 @@ class DashboardViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 item.id?.let { itemId ->
-                    supabase.from("clothes").delete { filter { eq("id", itemId) } }
+                    // THỰC HIỆN XÓA MỀM (Soft Delete): Cập nhật status thành "unactive"
+                    val updateMap = mapOf("status" to "unactive")
+                    supabase.from("clothes").update(updateMap) { filter { eq("id", itemId) } }
                     // Cập nhật UI
                     val currentList = _clothingItems.value.toMutableList()
                     currentList.remove(item)
@@ -158,7 +174,16 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
-    fun updateMeasurements(userId: String, height: Int, weight: Int, shape: String) {
+    fun updateMeasurements(
+        userId: String, 
+        height: Int, 
+        weight: Int, 
+        shape: String,
+        skinTone: String,
+        topSize: String,
+        bottomSize: String,
+        shoeSizeEu: Int
+    ) {
         viewModelScope.launch {
             isUpdating = true
             try {
@@ -166,6 +191,10 @@ class DashboardViewModel : ViewModel() {
                     "height_cm" to height,
                     "weight_kg" to weight,
                     "body_shape" to shape,
+                    "skin_tone" to skinTone,
+                    "top_size" to topSize,
+                    "bottom_size" to bottomSize,
+                    "shoe_size_eu" to shoeSizeEu,
                     "updated_at" to Clock.System.now().toString()
                 )
 
@@ -176,7 +205,37 @@ class DashboardViewModel : ViewModel() {
                 userProfile = userProfile?.copy(
                     heightCm = height.toFloat(),
                     weightKg = weight.toFloat(),
-                    bodyShape = shape
+                    bodyShape = shape,
+                    skinTone = skinTone,
+                    topSize = topSize,
+                    bottomSize = bottomSize,
+                    shoeSizeEu = shoeSizeEu
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isUpdating = false
+            }
+        }
+    }
+
+    fun updateStylePreferences(userId: String, styles: List<String>, colors: List<String>) {
+        viewModelScope.launch {
+            isUpdating = true
+            try {
+                val updateMap = mapOf(
+                    "favorite_styles" to styles,
+                    "favorite_colors" to colors,
+                    "updated_at" to Clock.System.now().toString()
+                )
+
+                supabase.from("profiles").update(updateMap) {
+                    filter { eq("id", userId) }
+                }
+
+                userProfile = userProfile?.copy(
+                    favoriteStyles = styles,
+                    favoriteColors = colors
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -292,6 +351,62 @@ class DashboardViewModel : ViewModel() {
         currentChatSessionId = null
     }
 
+    // ==========================================
+    // TẠO OUTFIT CANVAS BẰNG AI
+    // ==========================================
+    fun generateCanvasOutfit(weatherTemp: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            isCanvasLoading = true
+            try {
+                val currentItems = _clothingItems.value
+                if (currentItems.size < 3) {
+                    isCanvasLoading = false
+                    return@launch
+                }
+
+                val generativeModel = com.google.ai.client.generativeai.GenerativeModel(
+                    modelName = "gemini-2.5-flash",
+                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
+                )
+
+                val inventoryData = currentItems.joinToString("\n") { 
+                    "- ID: ${it.id} | Name: ${it.clothes_name} | Category: ${it.category} | Color: ${it.mainColor}" 
+                }
+
+                val prompt = """
+                    You are an expert fashion stylist. The current weather is $weatherTemp.
+                    Here is the user's closet inventory:
+                    $inventoryData
+                    
+                    Task: Select EXACTLY 3 items to create a perfect, stylish outfit for today.
+                    You MUST select EXACTLY 1 Top, 1 Bottom, and 1 Shoes.
+                    The IDs you return MUST exactly match the IDs provided above.
+                    
+                    Return ONLY the 3 IDs separated by commas, in this exact order: TOP_ID, BOTTOM_ID, SHOES_ID.
+                    Do NOT return any other text, no markdown, no explanations.
+                """.trimIndent()
+
+                val response = generativeModel.generateContent(prompt)
+                val responseText = response.text?.trim() ?: ""
+
+                val ids = responseText.split(",").map { it.trim() }
+                if (ids.size == 3) {
+                    val top = currentItems.find { it.id == ids[0] }
+                    val bottom = currentItems.find { it.id == ids[1] }
+                    val shoes = currentItems.find { it.id == ids[2] }
+
+                    if (top != null && bottom != null && shoes != null) {
+                        aiCanvasOutfit.value = Outfit(top, bottom, shoes)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isCanvasLoading = false
+            }
+        }
+    }
+
     // 6. Hàm xóa lịch sử chat trên Database
     fun deleteChatSession(sessionId: String, userId: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -303,6 +418,100 @@ class DashboardViewModel : ViewModel() {
                 // Cập nhật lại danh sách bên Sidebar để dòng chat vừa xóa biến mất
                 fetchChatSessions(userId)
             } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // ==========================================
+    // XỬ LÝ NHẬT KÝ PHỐI ĐỒ (OOTD)
+    // ==========================================
+    
+    // Biến lưu trữ danh sách đồ mặc nhiều nhất
+    private val _topFavoriteClothes = MutableStateFlow<List<Pair<ClothingItem, Int>>>(emptyList())
+    val topFavoriteClothes: StateFlow<List<Pair<ClothingItem, Int>>> = _topFavoriteClothes.asStateFlow()
+
+    fun logOotd(
+        userId: String,
+        clothingIds: List<String>,
+        weatherMain: String? = null,
+        temp: Float? = null,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Tạo Outfit mới
+                val newOutfit = OutfitDbModel(
+                    userId = userId,
+                    name = "OOTD ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}"
+                )
+                val savedOutfit = supabase.from("outfits").insert(newOutfit) { select() }.decodeSingle<OutfitDbModel>()
+                
+                // 2. Lưu các món đồ vào Outfit Items
+                val outfitItems = clothingIds.map { 
+                    OutfitItemDbModel(outfitId = savedOutfit.id!!, clothingId = it)
+                }
+                supabase.from("outfit_items").insert(outfitItems)
+                
+                // 3. Lưu vào Usage History
+                val usage = UsageHistoryDbModel(
+                    userId = userId,
+                    outfitId = savedOutfit.id!!,
+                    weatherMain = weatherMain,
+                    temperatureC = temp,
+                    wornDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                )
+                supabase.from("usage_history").insert(usage)
+                
+                launch(Dispatchers.Main) { 
+                    onSuccess()
+                    fetchTopFavoriteClothes(userId) // Làm mới danh sách Top Favourites
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Hàm lấy danh sách đồ được mặc nhiều nhất dựa trên Usage History
+    fun fetchTopFavoriteClothes(userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Bước 1: Lấy tất cả lịch sử mặc đồ của user
+                val histories = supabase.from("usage_history")
+                    .select { filter { eq("user_id", userId) } }
+                    .decodeList<UsageHistoryDbModel>()
+                
+                if (histories.isEmpty()) return@launch
+                
+                val outfitIds = histories.map { it.outfitId }
+                
+                // Bước 2: Lấy tất cả item thuộc các bộ đồ đó
+                val outfitItems = supabase.from("outfit_items")
+                    .select { filter { isIn("outfit_id", outfitIds) } }
+                    .decodeList<OutfitItemDbModel>()
+                    
+                // Bước 3: Đếm tần suất xuất hiện của mỗi clothingId
+                val frequencyMap = outfitItems.groupingBy { it.clothingId }.eachCount()
+                
+                // Bước 4: Lấy top 5 clothingId phổ biến nhất
+                val topClothingIds = frequencyMap.entries.sortedByDescending { it.value }.take(5).map { it.key }
+                
+                if (topClothingIds.isEmpty()) return@launch
+                
+                // Bước 5: Lấy thông tin chi tiết của các món đồ này từ DB
+                val clothes = supabase.from("clothes")
+                    .select { filter { isIn("id", topClothingIds) } }
+                    .decodeList<ClothingItem>()
+                    
+                // Ghép nối data và tần suất lại với nhau
+                val resultList = clothes.mapNotNull { item ->
+                    val count = frequencyMap[item.id] ?: 0
+                    if (count > 0) Pair(item, count) else null
+                }.sortedByDescending { it.second }
+                
+                _topFavoriteClothes.value = resultList
+            } catch(e: Exception) {
                 e.printStackTrace()
             }
         }

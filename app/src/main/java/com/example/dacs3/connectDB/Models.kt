@@ -48,7 +48,8 @@ data class ClothingItem(
     val category: String,
     @SerialName("main_color") val mainColor: String? = null,
     val seasons: List<String>? = null,
-    val occasions: List<String>? = null
+    val occasions: List<String>? = null,
+    val status: String = "active"
 )
 
 // 3. Bộ phối đồ
@@ -73,5 +74,41 @@ data class ChatMessageModel(
     @SerialName("session_id") val sessionId: String, // Thuộc phiên chat nào
     val role: String, // Chỉ nhận 'user' hoặc 'model'
     val content: String, // Nội dung tin nhắn
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+// 4. Các model cho Nhật Ký Phối Đồ (OOTD) chuẩn 3NF
+@Serializable
+data class OutfitDbModel(
+    val id: String? = null,
+    @SerialName("user_id") val userId: String,
+    val name: String = "My Outfit",
+    val description: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    val occasion: String? = null,
+    val season: String? = null,
+    @SerialName("is_favorite") val isFavorite: Boolean = false,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+data class OutfitItemDbModel(
+    val id: String? = null,
+    @SerialName("outfit_id") val outfitId: String,
+    @SerialName("clothing_id") val clothingId: String
+)
+
+@Serializable
+data class UsageHistoryDbModel(
+    val id: String? = null,
+    @SerialName("user_id") val userId: String,
+    @SerialName("outfit_id") val outfitId: String,
+    @SerialName("weather_main") val weatherMain: String? = null,
+    @SerialName("temperature_c") val temperatureC: Float? = null,
+    val humidity: String? = null,
+    @SerialName("worn_date") val wornDate: String? = null, // yyyy-MM-dd
+    val location: String? = null,
+    val rating: Int? = null,
+    val note: String? = null,
     @SerialName("created_at") val createdAt: String? = null
 )

@@ -56,8 +56,6 @@ class MainActivity : ComponentActivity() {
                                 popUpTo("login") { inclusive = true }
                                 launchSingleTop = true
                             }
-                        } else if (uriString == "wearwise://stylist") {
-                            navController.navigate("stylist")
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()

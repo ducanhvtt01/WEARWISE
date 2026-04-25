@@ -220,7 +220,22 @@ fun HomeUI(
                     .padding(innerPadding)
             ) {
                 when (selectedTab) {
-                    0 -> DashboardContent(userProfile, closetItems)
+                    0 -> {
+                        val topFavoriteClothes by viewModel.topFavoriteClothes.collectAsState()
+                        androidx.compose.runtime.LaunchedEffect(userId) {
+                            if (userId.isNotEmpty()) {
+                                viewModel.fetchTopFavoriteClothes(userId)
+                            }
+                        }
+                        DashboardContent(
+                            currentProfile = userProfile, 
+                            closetItems = closetItems,
+                            topFavoriteClothes = topFavoriteClothes,
+                            onLogOotd = { ids ->
+                                viewModel.logOotd(userId, ids, null, null) {}
+                            }
+                        )
+                    }
                     1 -> ClosetScreen(viewModel = viewModel) // [SỬA ĐỔI] TRUYỀN VIEWMODEL VÀO CLOSET SCREEN
                     2 -> StylistScreen()
                     3 -> ProfileScreen(

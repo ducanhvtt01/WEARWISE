@@ -139,8 +139,9 @@ fun ProfileScreen(
             MeasurementEditSheetContent(
                 currentProfile = userProfile,
                 onSave = { h, w, shape, skin, top, bottom, shoe ->
-                    // LƯU Ý: Bạn cần vào DashboardViewModel để cập nhật hàm này cho nhận đủ tham số
-                    // viewModel.updateMeasurements(userId, h, w, shape, skin, top, bottom, shoe)
+                    if (h != null && w != null && shoe != null) {
+                        viewModel.updateMeasurements(userId, h, w, shape, skin, top, bottom, shoe)
+                    }
                     showMeasurementSheet = false
                 },
                 onCancel = { showMeasurementSheet = false }
@@ -158,8 +159,7 @@ fun ProfileScreen(
             StylePreferencesSheetContent(
                 currentProfile = userProfile,
                 onSave = { styles, colors ->
-                    // LƯU Ý: Tạo hàm updateStylePreferences trong DashboardViewModel
-                    // viewModel.updateStylePreferences(userId, styles, colors)
+                    viewModel.updateStylePreferences(userId, styles, colors)
                     showStyleSheet = false
                 },
                 onCancel = { showStyleSheet = false }

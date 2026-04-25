@@ -27,13 +27,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+
 @Composable
 fun OutfitItemPlaceholder(
     name: String,
     icon: ImageVector,
     subtext: String,
     iconBgColor: Color,
-    iconColor: Color
+    iconColor: Color,
+    imageUrl: String = ""
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -48,15 +52,25 @@ fun OutfitItemPlaceholder(
                 .size(56.dp)
                 .background(iconBgColor, RoundedCornerShape(16.dp))
         ) {
-            Icon(icon, null, tint = iconColor, modifier = Modifier.size(24.dp))
+            if (imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(icon, null, tint = iconColor, modifier = Modifier.size(24.dp))
+            }
         }
         Spacer(modifier = Modifier.width(16.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 name,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp
+                fontSize = 16.sp,
+                maxLines = 1
             )
             Text(subtext, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }

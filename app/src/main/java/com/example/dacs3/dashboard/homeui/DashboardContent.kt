@@ -65,7 +65,12 @@ import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardContent(currentProfile: Profile?, closetItems: List<ClothingItem>) {
+fun DashboardContent(
+    currentProfile: Profile?, 
+    closetItems: List<ClothingItem>,
+    topFavoriteClothes: List<Pair<ClothingItem, Int>> = emptyList(),
+    onLogOotd: (List<String>) -> Unit = {}
+) {
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
 
@@ -77,6 +82,11 @@ fun DashboardContent(currentProfile: Profile?, closetItems: List<ClothingItem>) 
     var suggestedTop by remember { mutableStateOf<ClothingItem?>(null) }
     var suggestedBottom by remember { mutableStateOf<ClothingItem?>(null) }
     var suggestedShoes by remember { mutableStateOf<ClothingItem?>(null) }
+
+    var showOotdSheet by remember { mutableStateOf(false) }
+    var selectedOotdTop by remember { mutableStateOf<ClothingItem?>(null) }
+    var selectedOotdBottom by remember { mutableStateOf<ClothingItem?>(null) }
+    var selectedOotdShoes by remember { mutableStateOf<ClothingItem?>(null) }
 
     androidx.compose.runtime.LaunchedEffect(closetItems, selectedMood, selectedEvent) {
         suggestedTop = closetItems.filter { it.category.equals("top", true) }.randomOrNull()
@@ -98,6 +108,90 @@ fun DashboardContent(currentProfile: Profile?, closetItems: List<ClothingItem>) 
         "Relaxed" to listOf("Chill", "Cozy", "Peaceful", "Effortless"),
         "Emotional" to listOf("Elegant", "Romantic", "Nostalgic", "Edgy")
     )
+
+    if (showOotdSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showOotdSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    Text(
+                        "Log Your OOTD",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                val tops = closetItems.filter { it.category.equals("top", true) }
+                val bottoms = closetItems.filter { it.category.equals("bottom", true) }
+                val shoes = closetItems.filter { it.category.equals("shoes", true) }
+                
+                item { Text("Select Top:", fontWeight = FontWeight.Bold) }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(tops.size) { i ->
+                            FilterChip(
+                                selected = selectedOotdTop == tops[i],
+                                onClick = { selectedOotdTop = tops[i] },
+                                label = { Text(tops[i].clothes_name) }
+                            )
+                        }
+                    }
+                }
+                
+                item { Text("Select Bottom:", fontWeight = FontWeight.Bold) }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(bottoms.size) { i ->
+                            FilterChip(
+                                selected = selectedOotdBottom == bottoms[i],
+                                onClick = { selectedOotdBottom = bottoms[i] },
+                                label = { Text(bottoms[i].clothes_name) }
+                            )
+                        }
+                    }
+                }
+                
+                item { Text("Select Shoes:", fontWeight = FontWeight.Bold) }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(shoes.size) { i ->
+                            FilterChip(
+                                selected = selectedOotdShoes == shoes[i],
+                                onClick = { selectedOotdShoes = shoes[i] },
+                                label = { Text(shoes[i].clothes_name) }
+                            )
+                        }
+                    }
+                }
+                
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            val ids = listOfNotNull(selectedOotdTop?.id, selectedOotdBottom?.id, selectedOotdShoes?.id)
+                            if (ids.isNotEmpty()) {
+                                onLogOotd(ids)
+                                showOotdSheet = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save OOTD")
+                    }
+                    Spacer(modifier = Modifier.height(40.dp))
+                }
+            }
+        }
+    }
 
     if (showEventSheet) {
         ModalBottomSheet(
@@ -616,6 +710,47 @@ fun DashboardContent(currentProfile: Profile?, closetItems: List<ClothingItem>) 
         }
 
         item { Spacer(modifier = Modifier.height(36.dp)) }
+        
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "OOTD Journal",
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                )
+                Button(onClick = { showOotdSheet = true }) {
+                    Text("Log Today's Outfit")
+                }
+            }
+        }
+        
+        if (topFavoriteClothes.isNotEmpty()) {
+            item {
+                Text(
+                    "Your Top Favorite Items",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                ) {
+                    items(topFavoriteClothes.size) { index ->
+                        val (item, count) = topFavoriteClothes[index]
+                        StatCard(item.clothes_name.take(15), "Worn $count x")
+                    }
+                }
+            }
+        }
 
         item {
             Text(

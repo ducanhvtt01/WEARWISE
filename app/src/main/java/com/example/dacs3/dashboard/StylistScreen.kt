@@ -451,7 +451,10 @@ fun StylistScreen(
                                         sendMessageToAI(selectedPrompt)
                                     })
 
-                                    OutfitCanvasSection()
+                                    OutfitCanvasSection(
+                                        viewModel = dashboardViewModel,
+                                        weatherTemp = currentTemp
+                                    )
 
                                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -902,7 +905,11 @@ fun QuickPromptsSection(onPromptClick: (String) -> Unit) {
 }
 
 @Composable
-fun OutfitCanvasSection() {
+fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
+    val aiCanvasOutfit by viewModel.aiCanvasOutfit.collectAsState()
+    val isLoading = viewModel.isCanvasLoading
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -920,7 +927,7 @@ fun OutfitCanvasSection() {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "The 'Smart Casual' Look",
+                    "AI Outfit Canvas",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -931,7 +938,7 @@ fun OutfitCanvasSection() {
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        "98% match with your vibe",
+                        "Your daily tailored look",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.secondary,
                         fontWeight = FontWeight.Bold,
@@ -942,77 +949,118 @@ fun OutfitCanvasSection() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutfitItemPlaceholder(
-                    "Beige Trench Coat",
-                    Icons.Outlined.Checkroom,
-                    "Outerwear",
-                    MaterialTheme.colorScheme.tertiaryContainer,
-                    Color(0xFFFF9800)
+            if (isLoading) {
+                // Loading State
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(32.dp)
                 )
-                OutfitItemPlaceholder(
-                    "Black Turtleneck",
-                    Icons.Filled.Checkroom,
-                    "Top",
-                    MaterialTheme.colorScheme.surfaceVariant,
-                    MaterialTheme.colorScheme.primary
+                Text(
+                    "Stylist is choosing your outfit...",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutfitItemPlaceholder(
-                    "Navy Tailored Trousers",
-                    Icons.Outlined.Checkroom,
-                    "Bottom",
-                    MaterialTheme.colorScheme.secondaryContainer,
-                    MaterialTheme.colorScheme.secondary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(MaterialTheme.colorScheme.background, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                Spacer(modifier = Modifier.height(32.dp))
+            } else if (aiCanvasOutfit != null) {
+                // Hiển thị đồ thật
+                val outfit = aiCanvasOutfit!!
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutfitItemPlaceholder(
+                        name = outfit.top.clothes_name,
+                        icon = Icons.Outlined.Checkroom,
+                        subtext = "Top • ${outfit.top.mainColor}",
+                        iconBgColor = MaterialTheme.colorScheme.surfaceVariant,
+                        iconColor = MaterialTheme.colorScheme.primary,
+                        imageUrl = outfit.top.imageUrl
+                    )
+                    OutfitItemPlaceholder(
+                        name = outfit.bottom.clothes_name,
+                        icon = Icons.Filled.Checkroom,
+                        subtext = "Bottom • ${outfit.bottom.mainColor}",
+                        iconBgColor = MaterialTheme.colorScheme.secondaryContainer,
+                        iconColor = MaterialTheme.colorScheme.secondary,
+                        imageUrl = outfit.bottom.imageUrl
+                    )
+                    OutfitItemPlaceholder(
+                        name = outfit.shoes.clothes_name,
+                        icon = Icons.Outlined.Checkroom,
+                        subtext = "Shoes • ${outfit.shoes.mainColor}",
+                        iconBgColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        iconColor = Color(0xFFFF9800),
+                        imageUrl = outfit.shoes.imageUrl
                     )
                 }
 
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { viewModel.aiCanvasOutfit.value = null },
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(MaterialTheme.colorScheme.background, CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val userId = viewModel.userProfile?.id ?: ""
+                            val ids = listOfNotNull(outfit.top.id, outfit.bottom.id, outfit.shoes.id)
+                            if (userId.isNotBlank()) {
+                                viewModel.logOotd(userId, ids) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Outfit Logged to OOTD!",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier
+                            .height(56.dp)
+                            .weight(1f)
+                            .padding(horizontal = 12.dp)
+                    ) {
+                        Text(
+                            "WEAR IT",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.generateCanvasOutfit(weatherTemp) },
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                    ) {
+                        Icon(
+                            Icons.Filled.Refresh,
+                            null,
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+            } else {
+                // Trạng thái rỗng: Cần gợi ý
                 Button(
-                    onClick = { },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    shape = RoundedCornerShape(28.dp),
-                    modifier = Modifier
-                        .height(56.dp)
-                        .weight(1f)
-                        .padding(horizontal = 12.dp)
+                    onClick = { viewModel.generateCanvasOutfit(weatherTemp) },
+                    modifier = Modifier.padding(vertical = 32.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text(
-                        "WEAR IT",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-
-                IconButton(
-                    onClick = { },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
-                ) {
-                    Icon(
-                        Icons.Outlined.FavoriteBorder,
-                        null,
-                        tint = MaterialTheme.colorScheme.secondary
-                    )
+                    Icon(Icons.Filled.AutoAwesome, null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ask AI to Style Me Today", fontWeight = FontWeight.Bold)
                 }
             }
         }
