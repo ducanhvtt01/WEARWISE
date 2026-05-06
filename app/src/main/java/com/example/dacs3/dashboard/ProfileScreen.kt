@@ -8,6 +8,10 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.canhub.cropper.CropImageContract
+import com.canhub.cropper.CropImageContractOptions
+import com.canhub.cropper.CropImageOptions
+import com.canhub.cropper.CropImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -46,6 +50,10 @@ import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.connectDB.supabase
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.launch
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import android.graphics.ImageDecoder
+import android.net.Uri
 
 // HÀM KIỂM TRA QUYỀN RIÊNG ĐỂ TÁI SỬ DỤNG
 fun checkNotificationPermission(context: Context): Boolean {
@@ -87,6 +95,10 @@ fun ProfileScreen(
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showMeasurementSheet by remember { mutableStateOf(false) }
     var showStyleSheet by remember { mutableStateOf(false) } // State mới cho Style Preferences
+    var showEditProfileSheet by remember { mutableStateOf(false) }
+    var showImageSourceSheet by remember { mutableStateOf(false) }
+    
+    var tempImageUri by remember { mutableStateOf<Uri?>(null) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val userId = remember { supabase.auth.currentUserOrNull()?.id ?: "" }
@@ -129,6 +141,86 @@ fun ProfileScreen(
         }
     }
 
+    val cropImageLauncher = rememberLauncherForActivityResult(CropImageContract()) { result ->
+        if (result.isSuccessful) {
+            val uri = result.uriContent
+            uri?.let {
+                val bitmap = if (Build.VERSION.SDK_INT < 28) {
+                    @Suppress("DEPRECATION")
+                    android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                } else {
+                    val source = ImageDecoder.createSource(context.contentResolver, it)
+                    ImageDecoder.decodeBitmap(source)
+                }
+                viewModel.uploadAvatar(context, userId, bitmap)
+            }
+        } else {
+            val exception = result.error
+            exception?.printStackTrace()
+        }
+    }
+
+    // Launcher cho Gallery
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            cropImageLauncher.launch(
+                CropImageContractOptions(
+                    uri = it,
+                    cropImageOptions = CropImageOptions(
+                        guidelines = CropImageView.Guidelines.ON,
+                        cropShape = CropImageView.CropShape.OVAL,
+                        fixAspectRatio = true,
+                        aspectRatioX = 1,
+                        aspectRatioY = 1,
+                        outputRequestWidth = 512,
+                        outputRequestHeight = 512,
+                        backgroundColor = 0x77000000.toInt(), // Màu nền mờ
+                        cropMenuCropButtonTitle = "Save" // Đổi chữ nút Lưu
+                    )
+                )
+            )
+        }
+    }
+
+    // Launcher cho Camera
+    val cameraSourceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempImageUri != null) {
+            cropImageLauncher.launch(
+                CropImageContractOptions(
+                    uri = tempImageUri,
+                    cropImageOptions = CropImageOptions(
+                        guidelines = CropImageView.Guidelines.ON,
+                        cropShape = CropImageView.CropShape.OVAL,
+                        fixAspectRatio = true,
+                        aspectRatioX = 1,
+                        aspectRatioY = 1,
+                        outputRequestWidth = 512,
+                        outputRequestHeight = 512,
+                        backgroundColor = 0x77000000.toInt(), // Màu nền mờ
+                        cropMenuCropButtonTitle = "Save" // Đổi chữ nút Lưu
+                    )
+                )
+            )
+        }
+    }
+
+    // Hàm tạo URI tạm thời cho Camera
+    fun createTempPictureUri(): Uri {
+        val tempFile = java.io.File.createTempFile("avatar_capture", ".jpg", context.cacheDir).apply {
+            createNewFile()
+            deleteOnExit()
+        }
+        return androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            tempFile
+        )
+    }
+
     // --- HIỂN THỊ BOTTOM SHEET SỐ ĐO (MEASUREMENTS) ---
     if (showMeasurementSheet && userProfile != null) {
         ModalBottomSheet(
@@ -163,6 +255,51 @@ fun ProfileScreen(
                     showStyleSheet = false
                 },
                 onCancel = { showStyleSheet = false }
+            )
+        }
+    }
+
+    // --- HIỂN THỊ BOTTOM SHEET CHỈNH SỬA HỒ SƠ ---
+    if (showEditProfileSheet && userProfile != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showEditProfileSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            EditProfileSheetContent(
+                currentFullName = userProfile.fullName ?: "",
+                onSave = { newName ->
+                    viewModel.updateProfile(userId, newName)
+                    showEditProfileSheet = false
+                },
+                onCancel = { showEditProfileSheet = false }
+            )
+        }
+    }
+
+    // --- HIỂN THỊ BOTTOM SHEET CHỌN NGUỒN ẢNH (CAMERA/GALLERY) ---
+    if (showImageSourceSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showImageSourceSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            ImageSourceSheetContent(
+                onGalleryClick = {
+                    showImageSourceSheet = false
+                    galleryLauncher.launch("image/*")
+                },
+                onCameraClick = {
+                    showImageSourceSheet = false
+                    try {
+                        val uri = createTempPictureUri()
+                        tempImageUri = uri
+                        cameraSourceLauncher.launch(uri)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        android.widget.Toast.makeText(context, "Không thể mở camera", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
             )
         }
     }
@@ -233,15 +370,59 @@ fun ProfileScreen(
                     Box(
                         modifier = Modifier
                             .size(100.dp)
-                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                            .clickable { showImageSourceSheet = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            userProfile?.fullName?.firstOrNull()?.uppercase() ?: "A",
-                            fontSize = 40.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
+                        if (userProfile?.avatarUrl != null) {
+                            AsyncImage(
+                                model = userProfile.avatarUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                userProfile?.fullName?.firstOrNull()?.uppercase() ?: "A",
+                                fontSize = 40.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+
+                        // HIỂN THỊ LOADING KHI ĐANG UPLOAD
+                        if (viewModel.isUpdating) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.4f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(30.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                        
+                        // Overlay icon edit nhỏ
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.BottomEnd
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CameraAlt,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(20.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -263,7 +444,7 @@ fun ProfileScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
-                            onClick = { },
+                            onClick = { showEditProfileSheet = true },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                 contentColor = MaterialTheme.colorScheme.primary
@@ -400,6 +581,144 @@ fun ProfileScreen(
         }
 
         item { Spacer(modifier = Modifier.height(120.dp)) }
+    }
+}
+
+// -------------------------------------------------------------
+// 00. BOTTOM SHEET CHỌN NGUỒN ẢNH (CAMERA/GALLERY)
+// -------------------------------------------------------------
+@Composable
+fun ImageSourceSheetContent(
+    onGalleryClick: () -> Unit,
+    onCameraClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            "Change Profile Picture",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // Nút Gallery
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { onGalleryClick() }
+                    .padding(16.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(60.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.PhotoLibrary,
+                            contentDescription = "Gallery",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Gallery", fontWeight = FontWeight.Medium)
+            }
+
+            // Nút Camera
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { onCameraClick() }
+                    .padding(16.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.size(60.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            contentDescription = "Camera",
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Camera", fontWeight = FontWeight.Medium)
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+// -------------------------------------------------------------
+// 0. CẬP NHẬT BOTTOM SHEET CHO "EDIT PROFILE"
+// -------------------------------------------------------------
+@Composable
+fun EditProfileSheetContent(
+    currentFullName: String,
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    var fullNameInput by remember { mutableStateOf(currentFullName) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Edit Profile",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        OutlinedTextField(
+            value = fullNameInput,
+            onValueChange = { fullNameInput = it },
+            label = { Text("Full Name") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            OutlinedButton(
+                onClick = onCancel,
+                modifier = Modifier.weight(1f).height(50.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Cancel")
+            }
+            Button(
+                onClick = { onSave(fullNameInput) },
+                modifier = Modifier.weight(1f).height(50.dp),
+                shape = RoundedCornerShape(12.dp),
+                enabled = fullNameInput.isNotBlank()
+            ) {
+                Text("Save Changes")
+            }
+        }
+        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 

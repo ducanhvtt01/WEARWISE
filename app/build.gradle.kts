@@ -111,4 +111,8 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     implementation("com.github.jeziellago:compose-markdown:0.5.4")
+    
+    // Thư viện Cắt ảnh (Crop Image)
+    implementation("com.github.CanHub:Android-Image-Cropper:4.5.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
     }

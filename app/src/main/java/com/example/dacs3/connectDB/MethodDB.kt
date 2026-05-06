@@ -245,6 +245,87 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
+    fun updateProfile(userId: String, fullName: String) {
+        viewModelScope.launch {
+            isUpdating = true
+            try {
+                val updateMap = mapOf(
+                    "full_name" to fullName,
+                    "updated_at" to Clock.System.now().toString()
+                )
+
+                supabase.from("profiles").update(updateMap) {
+                    filter { eq("id", userId) }
+                }
+
+                userProfile = userProfile?.copy(fullName = fullName)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isUpdating = false
+            }
+        }
+    }
+
+    fun uploadAvatar(context: android.content.Context, userId: String, bitmap: android.graphics.Bitmap) {
+        viewModelScope.launch(Dispatchers.IO) {
+            isUpdating = true
+            launch(Dispatchers.Main) {
+                android.widget.Toast.makeText(context, "Updating avatar...", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            try {
+                // 1. Tối ưu hóa Bitmap: Resize (giới hạn 512x512) và chuyển sang JPEG
+                val maxSize = 512
+                var finalBitmap = bitmap
+                
+                // Đảm bảo không dùng Hardware bitmap để có thể nén/resize
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && 
+                    bitmap.config == android.graphics.Bitmap.Config.HARDWARE) {
+                    finalBitmap = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                }
+
+                if (finalBitmap.width > maxSize || finalBitmap.height > maxSize) {
+                    val ratio = Math.min(maxSize.toFloat() / finalBitmap.width, maxSize.toFloat() / finalBitmap.height)
+                    val width = (finalBitmap.width * ratio).toInt()
+                    val height = (finalBitmap.height * ratio).toInt()
+                    finalBitmap = android.graphics.Bitmap.createScaledBitmap(finalBitmap, width, height, true)
+                }
+                
+                val baos = ByteArrayOutputStream()
+                finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos)
+                val imageBytes = baos.toByteArray()
+
+                // 2. Tạo tên file duy nhất dựa trên UserId
+                val fileName = "avatar_${userId}.jpg" // Dùng cùng tên để ghi đè (upsert)
+
+                // 3. Upload lên bucket "avatars"
+                val bucket = supabase.storage.from("avatars")
+                bucket.upload(fileName, imageBytes, upsert = true)
+
+                // 4. Lấy Public URL kèm theo timestamp để tránh cache ảnh cũ
+                val publicUrl = bucket.publicUrl(fileName) + "?t=${System.currentTimeMillis()}"
+
+                // 5. Cập nhật vào bảng profiles
+                supabase.from("profiles").update(mapOf("avatar_url" to publicUrl)) {
+                    filter { eq("id", userId) }
+                }
+
+                // 6. Cập nhật State UI
+                launch(Dispatchers.Main) {
+                    userProfile = userProfile?.copy(avatarUrl = publicUrl)
+                    android.widget.Toast.makeText(context, "Avatar updated successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                launch(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Upload failed: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                }
+            } finally {
+                isUpdating = false
+            }
+        }
+    }
+
     // ==========================================
     // XỬ LÝ LƯU TRỮ LỊCH SỬ CHAT AI
     // ==========================================
