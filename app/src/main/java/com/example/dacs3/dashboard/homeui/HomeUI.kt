@@ -231,8 +231,8 @@ fun HomeUI(
                             currentProfile = userProfile, 
                             closetItems = closetItems,
                             topFavoriteClothes = topFavoriteClothes,
-                            onLogOotd = { ids ->
-                                viewModel.logOotd(userId, ids, null, null) {}
+                            onLogOotd = { ids, event, mood ->
+                                viewModel.logOotd(userId, ids, null, null, event, mood) {}
                             }
                         )
                     }

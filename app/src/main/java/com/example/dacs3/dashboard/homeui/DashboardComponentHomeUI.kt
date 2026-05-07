@@ -17,6 +17,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -73,6 +74,69 @@ fun OutfitItemPlaceholder(
                 maxLines = 1
             )
             Text(subtext, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+fun FavoriteItemCard(name: String, count: String, imageUrl: String?) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+            .width(140.dp)
+            .height(180.dp)
+            .padding(end = 4.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Ảnh món đồ (Chiếm trọn card)
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            // Lớp phủ Gradient phía dưới để hiện tên rõ hơn
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(70.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        )
+                    )
+            )
+
+            // Tên món đồ
+            Text(
+                text = name,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp),
+                maxLines = 1
+            )
+
+            // Huy hiệu số lần mặc (Góc trên phải)
+            Surface(
+                color = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(bottomStart = 16.dp, topEnd = 20.dp),
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
+                Text(
+                    text = "${count}x",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
         }
     }
 }

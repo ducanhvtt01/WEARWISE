@@ -517,6 +517,8 @@ class DashboardViewModel : ViewModel() {
         clothingIds: List<String>,
         weatherMain: String? = null,
         temp: Float? = null,
+        event: String? = null,
+        mood: String? = null,
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -534,13 +536,19 @@ class DashboardViewModel : ViewModel() {
                 }
                 supabase.from("outfit_items").insert(outfitItems)
                 
-                // 3. Lưu vào Usage History
+                // 3. Tạo ghi chú ngữ cảnh (Event & Mood)
+                val contextNote = if (event != null || mood != null) {
+                    "Occasion: $event | Mood: $mood"
+                } else null
+
+                // 4. Lưu vào Usage History
                 val usage = UsageHistoryDbModel(
                     userId = userId,
                     outfitId = savedOutfit.id!!,
                     weatherMain = weatherMain,
                     temperatureC = temp,
-                    wornDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                    wornDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()),
+                    note = contextNote
                 )
                 supabase.from("usage_history").insert(usage)
                 

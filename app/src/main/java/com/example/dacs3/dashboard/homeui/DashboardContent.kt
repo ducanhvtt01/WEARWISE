@@ -69,7 +69,7 @@ fun DashboardContent(
     currentProfile: Profile?, 
     closetItems: List<ClothingItem>,
     topFavoriteClothes: List<Pair<ClothingItem, Int>> = emptyList(),
-    onLogOotd: (List<String>) -> Unit = {}
+    onLogOotd: (List<String>, String, String) -> Unit = { _, _, _ -> }
 ) {
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
@@ -88,10 +88,53 @@ fun DashboardContent(
     var selectedOotdBottom by remember { mutableStateOf<ClothingItem?>(null) }
     var selectedOotdShoes by remember { mutableStateOf<ClothingItem?>(null) }
 
+    // --- LOGIC GỢI Ý ĐỒ THÔNG MINH (EVENT + MOOD) ---
+    fun getSmartRecommendation(category: String, event: String, mood: String): ClothingItem? {
+        val allInCategory = closetItems.filter { it.category.equals(category, true) }
+        if (allInCategory.isEmpty()) return null
+
+        // 1. Ánh xạ Event sang Occasion trong DB
+        val targetOccasion = when (event) {
+            "University", "Presentation", "Library", "Internship" -> "Work"
+            "Coffee Date", "Dinner Date", "Party", "First Date" -> "Party"
+            "Gym Session", "Hiking" -> "Sport"
+            else -> "Casual"
+        }
+
+        // 2. Ánh xạ Mood sang nhóm màu sắc
+        val targetColors = when (mood) {
+            "Confident", "Productive", "Bold", "Creative" -> listOf("Red", "Black", "Yellow", "Orange", "Dark Blue")
+            "Chill", "Cozy", "Peaceful", "Effortless" -> listOf("White", "Beige", "Grey", "Light Blue", "Green")
+            "Elegant", "Romantic", "Nostalgic", "Edgy" -> listOf("Purple", "Pink", "Navy", "Maroon", "Silver")
+            else -> emptyList<String>()
+        }
+
+        // 3. Tiến hành lọc đa tầng
+        // Tầng 1: Khớp cả Sự kiện và Màu sắc tâm trạng
+        val matchBoth = allInCategory.filter { 
+            it.occasions?.contains(targetOccasion) == true && 
+            targetColors.any { color -> it.mainColor?.contains(color, ignoreCase = true) == true }
+        }
+        if (matchBoth.isNotEmpty()) return matchBoth.random()
+
+        // Tầng 2: Nếu không có cả hai, ưu tiên khớp Sự kiện
+        val matchOccasion = allInCategory.filter { it.occasions?.contains(targetOccasion) == true }
+        if (matchOccasion.isNotEmpty()) return matchOccasion.random()
+
+        // Tầng 3: Nếu không có sự kiện, ưu tiên khớp Màu sắc tâm trạng
+        val matchMood = allInCategory.filter { 
+            targetColors.any { color -> it.mainColor?.contains(color, ignoreCase = true) == true }
+        }
+        if (matchMood.isNotEmpty()) return matchMood.random()
+
+        // Tầng cuối: Ngẫu nhiên trong category
+        return allInCategory.random()
+    }
+
     androidx.compose.runtime.LaunchedEffect(closetItems, selectedMood, selectedEvent) {
-        suggestedTop = closetItems.filter { it.category.equals("top", true) }.randomOrNull()
-        suggestedBottom = closetItems.filter { it.category.equals("bottom", true) }.randomOrNull()
-        suggestedShoes = closetItems.filter { it.category.equals("shoes", true) }.randomOrNull()
+        suggestedTop = getSmartRecommendation("top", selectedEvent, selectedMood)
+        suggestedBottom = getSmartRecommendation("bottom", selectedEvent, selectedMood)
+        suggestedShoes = getSmartRecommendation("shoes", selectedEvent, selectedMood)
     }
 
     val haptic = LocalHapticFeedback.current
@@ -179,7 +222,7 @@ fun DashboardContent(
                         onClick = {
                             val ids = listOfNotNull(selectedOotdTop?.id, selectedOotdBottom?.id, selectedOotdShoes?.id)
                             if (ids.isNotEmpty()) {
-                                onLogOotd(ids)
+                                onLogOotd(ids, selectedEvent, selectedMood)
                                 showOotdSheet = false
                             }
                         },
@@ -685,9 +728,9 @@ fun DashboardContent(
                     Button(
                         onClick = { 
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress) 
-                            suggestedTop = closetItems.filter { it.category.equals("top", true) }.randomOrNull()
-                            suggestedBottom = closetItems.filter { it.category.equals("bottom", true) }.randomOrNull()
-                            suggestedShoes = closetItems.filter { it.category.equals("shoes", true) }.randomOrNull()
+                            suggestedTop = getSmartRecommendation("top", selectedEvent, selectedMood)
+                            suggestedBottom = getSmartRecommendation("bottom", selectedEvent, selectedMood)
+                            suggestedShoes = getSmartRecommendation("shoes", selectedEvent, selectedMood)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()
@@ -746,7 +789,7 @@ fun DashboardContent(
                 ) {
                     items(topFavoriteClothes.size) { index ->
                         val (item, count) = topFavoriteClothes[index]
-                        StatCard(item.clothes_name.take(15), "Worn $count x")
+                        FavoriteItemCard(item.clothes_name, count.toString(), item.imageUrl)
                     }
                 }
             }
