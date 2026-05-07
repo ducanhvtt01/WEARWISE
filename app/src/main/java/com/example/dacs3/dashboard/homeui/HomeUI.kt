@@ -233,7 +233,8 @@ fun HomeUI(
                             topFavoriteClothes = topFavoriteClothes,
                             onLogOotd = { ids, event, mood ->
                                 viewModel.logOotd(userId, ids, null, null, event, mood) {}
-                            }
+                            },
+                            onNavigateToStylist = { selectedTab = 2 }
                         )
                     }
                     1 -> ClosetScreen(viewModel = viewModel) // [SỬA ĐỔI] TRUYỀN VIEWMODEL VÀO CLOSET SCREEN

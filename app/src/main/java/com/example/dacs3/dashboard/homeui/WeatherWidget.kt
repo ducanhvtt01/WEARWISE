@@ -189,7 +189,7 @@ fun WeatherWidget(
         ) {
             Text(
                 text = if (isLocationDenied) "Loading..." else cityName,
-                fontSize = 14.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
@@ -198,7 +198,7 @@ fun WeatherWidget(
             Spacer(modifier = Modifier.height(5.dp))
             Text(
                 text = "$timeStr • $dateStr",
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
             )
@@ -281,7 +281,7 @@ fun WeatherWidget(
                 Text(
                     temperature,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 14.sp,
+                    fontSize = 18.sp,
                     color = widgetTextColor
                 )
             }

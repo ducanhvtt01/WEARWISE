@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -69,7 +70,8 @@ fun DashboardContent(
     currentProfile: Profile?, 
     closetItems: List<ClothingItem>,
     topFavoriteClothes: List<Pair<ClothingItem, Int>> = emptyList(),
-    onLogOotd: (List<String>, String, String) -> Unit = { _, _, _ -> }
+    onLogOotd: (List<String>, String, String) -> Unit = { _, _, _ -> },
+    onNavigateToStylist: () -> Unit = {}
 ) {
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
@@ -79,63 +81,10 @@ fun DashboardContent(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isLocationDenied by remember { mutableStateOf(false) }
 
-    var suggestedTop by remember { mutableStateOf<ClothingItem?>(null) }
-    var suggestedBottom by remember { mutableStateOf<ClothingItem?>(null) }
-    var suggestedShoes by remember { mutableStateOf<ClothingItem?>(null) }
-
     var showOotdSheet by remember { mutableStateOf(false) }
     var selectedOotdTop by remember { mutableStateOf<ClothingItem?>(null) }
     var selectedOotdBottom by remember { mutableStateOf<ClothingItem?>(null) }
     var selectedOotdShoes by remember { mutableStateOf<ClothingItem?>(null) }
-
-    // --- LOGIC GỢI Ý ĐỒ THÔNG MINH (EVENT + MOOD) ---
-    fun getSmartRecommendation(category: String, event: String, mood: String): ClothingItem? {
-        val allInCategory = closetItems.filter { it.category.equals(category, true) }
-        if (allInCategory.isEmpty()) return null
-
-        // 1. Ánh xạ Event sang Occasion trong DB
-        val targetOccasion = when (event) {
-            "University", "Presentation", "Library", "Internship" -> "Work"
-            "Coffee Date", "Dinner Date", "Party", "First Date" -> "Party"
-            "Gym Session", "Hiking" -> "Sport"
-            else -> "Casual"
-        }
-
-        // 2. Ánh xạ Mood sang nhóm màu sắc
-        val targetColors = when (mood) {
-            "Confident", "Productive", "Bold", "Creative" -> listOf("Red", "Black", "Yellow", "Orange", "Dark Blue")
-            "Chill", "Cozy", "Peaceful", "Effortless" -> listOf("White", "Beige", "Grey", "Light Blue", "Green")
-            "Elegant", "Romantic", "Nostalgic", "Edgy" -> listOf("Purple", "Pink", "Navy", "Maroon", "Silver")
-            else -> emptyList<String>()
-        }
-
-        // 3. Tiến hành lọc đa tầng
-        // Tầng 1: Khớp cả Sự kiện và Màu sắc tâm trạng
-        val matchBoth = allInCategory.filter { 
-            it.occasions?.contains(targetOccasion) == true && 
-            targetColors.any { color -> it.mainColor?.contains(color, ignoreCase = true) == true }
-        }
-        if (matchBoth.isNotEmpty()) return matchBoth.random()
-
-        // Tầng 2: Nếu không có cả hai, ưu tiên khớp Sự kiện
-        val matchOccasion = allInCategory.filter { it.occasions?.contains(targetOccasion) == true }
-        if (matchOccasion.isNotEmpty()) return matchOccasion.random()
-
-        // Tầng 3: Nếu không có sự kiện, ưu tiên khớp Màu sắc tâm trạng
-        val matchMood = allInCategory.filter { 
-            targetColors.any { color -> it.mainColor?.contains(color, ignoreCase = true) == true }
-        }
-        if (matchMood.isNotEmpty()) return matchMood.random()
-
-        // Tầng cuối: Ngẫu nhiên trong category
-        return allInCategory.random()
-    }
-
-    androidx.compose.runtime.LaunchedEffect(closetItems, selectedMood, selectedEvent) {
-        suggestedTop = getSmartRecommendation("top", selectedEvent, selectedMood)
-        suggestedBottom = getSmartRecommendation("bottom", selectedEvent, selectedMood)
-        suggestedShoes = getSmartRecommendation("shoes", selectedEvent, selectedMood)
-    }
 
     val haptic = LocalHapticFeedback.current
     val uriHandler = LocalUriHandler.current
@@ -580,172 +529,60 @@ fun DashboardContent(
         }
 
         item {
-            if (isLocationDenied) {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.secondaryContainer,
-                                    CircleShape
-                                )
-                        ) {
-                            Icon(
-                                Icons.Filled.AutoAwesome,
-                                null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "AI Stylist Suggestion",
-                            fontSize = 20.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(5.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Warning,
-                            null,
-                            modifier = Modifier.size(24.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            "Allow location for the best AI outfit tips!",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
-            } else {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToStylist() }
+                    .shadow(
+                        12.dp,
+                        RoundedCornerShape(24.dp),
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
+            ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "What should I wear today?",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Ask your AI Stylist for a personalized look based on your closet.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onNavigateToStylist,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Filled.AutoAwesome, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Open AI Stylist", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
                     Box(
-                        contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .size(32.dp)
-                            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                            .size(64.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Filled.AutoAwesome,
                             null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        "AI Stylist Suggestion",
-                        fontSize = 20.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        item {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        16.dp,
-                        RoundedCornerShape(24.dp),
-                        spotColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp)
-                ) {
-                    Text(
-                        "Perfect match for a $selectedMood $selectedEvent feeling.",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(bottom = 20.dp)
-                    )
-
-                    if (suggestedTop != null) {
-                        OutfitItemPlaceholder(
-                            suggestedTop!!.clothes_name,
-                            Icons.Outlined.Checkroom,
-                            "Top • ${suggestedTop!!.mainColor}",
-                            MaterialTheme.colorScheme.secondaryContainer,
-                            MaterialTheme.colorScheme.secondary
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                    if (suggestedBottom != null) {
-                        OutfitItemPlaceholder(
-                            suggestedBottom!!.clothes_name,
-                            Icons.Filled.Checkroom,
-                            "Bottom • ${suggestedBottom!!.mainColor}",
-                            MaterialTheme.colorScheme.surfaceVariant,
-                            MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                    if (suggestedShoes != null) {
-                        OutfitItemPlaceholder(
-                            suggestedShoes!!.clothes_name,
-                            Icons.Outlined.DirectionsWalk,
-                            "Shoes • ${suggestedShoes!!.mainColor}",
-                            MaterialTheme.colorScheme.tertiaryContainer,
-                            Color(0xFFFF9800)
-                        )
-                    }
-
-                    if (suggestedTop == null && suggestedBottom == null && suggestedShoes == null) {
-                        Text(
-                            "Add some clothes to your closet first!",
-                            color = MaterialTheme.colorScheme.error,
-                            fontSize = 14.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Button(
-                        onClick = { 
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress) 
-                            suggestedTop = getSmartRecommendation("top", selectedEvent, selectedMood)
-                            suggestedBottom = getSmartRecommendation("bottom", selectedEvent, selectedMood)
-                            suggestedShoes = getSmartRecommendation("shoes", selectedEvent, selectedMood)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            Icons.Outlined.Refresh,
-                            null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "Shuffle Outfit",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
                         )
                     }
                 }
