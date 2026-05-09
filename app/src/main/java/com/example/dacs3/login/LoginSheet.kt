@@ -29,7 +29,11 @@ import androidx.compose.ui.unit.sp
 import com.example.dacs3.R
 import com.example.dacs3.login.be.LoginResult
 import com.example.dacs3.login.be.logincheck
+import com.example.dacs3.login.be.signInWithSocial
 import com.example.dacs3.login.ui.theme.* // Import các màu chủ đạo
+import io.github.jan.supabase.gotrue.providers.Facebook
+import io.github.jan.supabase.gotrue.providers.Github
+import io.github.jan.supabase.gotrue.providers.Google
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -212,14 +216,30 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
             SocialButton(
                 icon = painterResource(id = R.drawable.ic_google),
                 tint = Color.Unspecified
-            ) { /* TODO: Login Google */ }
+            ) {
+                scope.launch {
+                    try {
+                        signInWithSocial(Google)
+                    } catch (e: Exception) {
+                        // Xử lý lỗi nếu trình duyệt không mở được
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.width(20.dp))
 
             // Nút Facebook (Đổ màu xanh đặc trưng)
             SocialButton(
                 icon = painterResource(id = R.drawable.ic_facebook)
-            ) { /* TODO: Login Facebook */ }
+            ) {
+                scope.launch {
+                    try {
+                        signInWithSocial(Facebook)
+                    } catch (e: Exception) {
+                        // Xử lý lỗi nếu trình duyệt không mở được
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.width(20.dp))
 
@@ -227,7 +247,15 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
             SocialButton(
                 icon = painterResource(id = R.drawable.ic_github),
                 tint = MidnightBlue
-            ) { /* TODO: Login GitHub */ }
+            ) {
+                scope.launch {
+                    try {
+                        signInWithSocial(Github)
+                    } catch (e: Exception) {
+                        // Xử lý lỗi nếu trình duyệt không mở được
+                    }
+                }
+            }
         }
         Spacer(modifier = Modifier.height(20.dp))
     }
