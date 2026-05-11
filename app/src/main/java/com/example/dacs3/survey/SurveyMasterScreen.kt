@@ -37,7 +37,7 @@ fun SurveyMasterScreen(onFinish: () -> Unit) {
                 1 -> childNavController.navigate("step2")
                 2 -> childNavController.navigate("step3")
                 3 -> {
-                    userId.let { surveyViewModel.updateProfile(it) }
+                    userId.let { surveyViewModel.updateProfile() }
                 }
             }
         }
