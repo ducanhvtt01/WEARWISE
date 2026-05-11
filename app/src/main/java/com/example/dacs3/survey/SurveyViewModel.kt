@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.dacs3.connectDB.ProfileUpdate
 import com.example.dacs3.connectDB.supabase
+import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -28,8 +29,16 @@ class SurveyViewModel : ViewModel() {
     var isUpdating by mutableStateOf(false)
     var updateSuccess by mutableStateOf(false)
 
-    fun updateProfile(userId: String) {
+    fun updateProfile() {
         viewModelScope.launch {
+
+            val user = supabase.auth.currentUserOrNull()
+            if (user == null) {
+                println("Lỗi: Người dùng chưa đăng nhập")
+                return@launch
+            }
+            val userId = user.id
+
             isUpdating = true
             try {
                 val updateData = ProfileUpdate(
