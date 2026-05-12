@@ -219,9 +219,21 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
             ) {
                 scope.launch {
                     try {
-                        signInWithSocial(Google)
+                        val started = signInWithSocial(Google)
+
+                        if (!started) {
+                            Toast.makeText(
+                                context,
+                                "Không thể mở đăng nhập Google",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     } catch (e: Exception) {
-                        // Xử lý lỗi nếu trình duyệt không mở được
+                        Toast.makeText(
+                            context,
+                            "Lỗi đăng nhập Google: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
@@ -234,9 +246,21 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
             ) {
                 scope.launch {
                     try {
-                        signInWithSocial(Facebook)
+                        val started = signInWithSocial(Facebook)
+
+                        if (!started) {
+                            Toast.makeText(
+                                context,
+                                "Không thể mở đăng nhập Facebook",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     } catch (e: Exception) {
-                        // Xử lý lỗi nếu trình duyệt không mở được
+                        Toast.makeText(
+                            context,
+                            "Lỗi đăng nhập Facebook: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
@@ -250,9 +274,21 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
             ) {
                 scope.launch {
                     try {
-                        signInWithSocial(Github)
+                        val started = signInWithSocial(Github)
+
+                        if (!started) {
+                            Toast.makeText(
+                                context,
+                                "Không thể mở đăng nhập GitHub",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     } catch (e: Exception) {
-                        // Xử lý lỗi nếu trình duyệt không mở được
+                        Toast.makeText(
+                            context,
+                            "Lỗi đăng nhập GitHub: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }

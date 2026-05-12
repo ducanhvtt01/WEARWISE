@@ -10,17 +10,19 @@ import io.github.jan.supabase.gotrue.providers.OAuthProvider
 
 var authErrorMessage by mutableStateOf<String?>(null)
 
-suspend fun signInWithSocial(provider: OAuthProvider) {
-    try {
+suspend fun signInWithSocial(provider: OAuthProvider): Boolean {
+    return try {
         authErrorMessage = null
+
         supabase.auth.signInWith(
             provider = provider,
             redirectUrl = "my-app-scheme://auth-callback"
         )
+
+        true
     } catch (e: Exception) {
-        // Ghi log vào hệ thống
-        Log.e("AuthError", "Đăng nhập thất bại: ${e.message}")
-        // Cập nhật thông báo lỗi ra màn hình
+        Log.e("AuthError", "Đăng nhập social thất bại: ${e.message}", e)
         authErrorMessage = "Lỗi: ${e.localizedMessage ?: "Không thể kết nối đến máy chủ"}"
+        false
     }
 }

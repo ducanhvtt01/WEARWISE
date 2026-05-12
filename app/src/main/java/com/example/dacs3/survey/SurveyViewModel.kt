@@ -12,35 +12,43 @@ import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 
 class SurveyViewModel : ViewModel() {
     var gender by mutableStateOf("")
     var height by mutableFloatStateOf(165f)
     var weight by mutableFloatStateOf(55f)
+
     var bodyShape by mutableStateOf("")
     var skinTone by mutableStateOf("")
+
     var favoriteStyles by mutableStateOf(setOf<String>())
     var favoriteColors by mutableStateOf(setOf<String>())
+
     var topSize by mutableStateOf("")
     var bottomSize by mutableStateOf("")
     var shoeSize by mutableFloatStateOf(39f)
 
     var isUpdating by mutableStateOf(false)
     var updateSuccess by mutableStateOf(false)
+    var errorMessage by mutableStateOf<String?>(null)
 
     fun updateProfile() {
         viewModelScope.launch {
-
-            val user = supabase.auth.currentUserOrNull()
-            if (user == null) {
-                println("Lỗi: Người dùng chưa đăng nhập")
-                return@launch
-            }
-            val userId = user.id
-
             isUpdating = true
+            updateSuccess = false
+            errorMessage = null
+
             try {
+                val session = supabase.auth.currentSessionOrNull()
+                val user = supabase.auth.currentUserOrNull()
+
+                if (session == null || user == null) {
+                    errorMessage = "Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại."
+                    return@launch
+                }
+
+                val userId = user.id
+
                 val updateData = ProfileUpdate(
                     gender = gender,
                     heightCm = height,
@@ -52,30 +60,36 @@ class SurveyViewModel : ViewModel() {
                     topSize = topSize,
                     bottomSize = bottomSize,
                     shoeSizeEu = shoeSize.toInt(),
-                    updatedAt = Clock.System.now().toString() // Lấy thời gian hiện tại
+                    updatedAt = Clock.System.now().toString()
                 )
 
-                // THỰC HIỆN UPDATE
                 supabase.from("profiles")
                     .update(updateData) {
                         filter {
-                            eq("id", userId) // Lọc đúng ID người dùng
+                            eq("id", userId)
                         }
                     }
 
                 updateSuccess = true
             } catch (e: Exception) {
-                println("Lỗi update: ${e.message}")
                 updateSuccess = false
+                errorMessage = "Không thể cập nhật khảo sát. Vui lòng thử lại."
             } finally {
                 isUpdating = false
             }
         }
     }
 }
+
 data class SurveyData(
-    val gender: String, val heightCm: Int, val weightKg: Int,
-    val bodyShape: String, val skinTone: String,
-    val favoriteStyles: List<String>, val favoriteColors: List<String>,
-    val topSize: String, val bottomSize: String, val shoeSizeEu: Int
+    val gender: String,
+    val heightCm: Int,
+    val weightKg: Int,
+    val bodyShape: String,
+    val skinTone: String,
+    val favoriteStyles: List<String>,
+    val favoriteColors: List<String>,
+    val topSize: String,
+    val bottomSize: String,
+    val shoeSizeEu: Int
 )
