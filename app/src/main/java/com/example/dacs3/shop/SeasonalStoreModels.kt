@@ -11,47 +11,56 @@ data class SeasonalShopResponseDto(
 
 @Serializable
 data class SeasonalShopMetaDto(
-    val project: String,
-    val description: String,
-    val country: String,
-    val provinceCount: Int,
-    val shopsPerProvince: Int,
-    val totalShops: Int,
-    val mainFocus: String,
-    val dataType: String,
-    val generatedAt: String,
-    val note: String
+    val project: String = "",
+    val description: String = "",
+    val country: String = "",
+    val provinceCount: Int = 0,
+
+    // Bản JSON cũ dùng field này
+    val shopsPerProvince: Int = 0,
+
+    // Bản JSON mới dùng 2 field này
+    val otherProvincesShopsPerProvince: Int = 0,
+    val daNangShopCount: Int = 0,
+
+    val totalShops: Int = 0,
+    val mainFocus: String = "",
+    val dataType: String = "",
+    val generatedAt: String = "",
+    val note: String = ""
 )
 
 @Serializable
 data class SeasonalStoreDto(
-    val id: String,
-    val name: String,
-    val type: String,
-    val provinceCode: String,
-    val province: String,
-    val provinceType: String,
-    val region: String,
-    val area: String,
-    val address: String,
-    val location: ShopLocationDto,
-    val rating: Double,
-    val reviewCount: Int,
-    val priceLevel: Int,
-    val phone: String,
-    val openHours: String,
-    val isOpenNow: Boolean,
-    val hasOnlineStore: Boolean,
-    val onlinePlatform: String,
-    val onlineUrl: String,
-    val coverImage: String,
-    val tags: List<String>,
+    val id: String = "",
+    val name: String = "",
+    val type: String = "",
+    val provinceCode: String = "",
+    val province: String = "",
+    val provinceType: String = "",
+    val region: String = "",
+    val area: String = "",
+    val address: String = "",
+    val location: ShopLocationDto = ShopLocationDto(),
+    val rating: Double = 0.0,
+    val reviewCount: Int = 0,
+    val priceLevel: Int = 0,
+    val phone: String = "",
+    val openHours: String = "",
+    val isOpenNow: Boolean = false,
+    val hasOnlineStore: Boolean = false,
+    val onlinePlatform: String = "",
+    val onlineUrl: String = "",
+    val coverImage: String = "",
+    val tags: List<String> = emptyList(),
 
     @SerialName("seasonCollections")
-    val seasons: List<String>,
+    val seasons: List<String> = emptyList(),
 
-    val distancePriority: String,
-    val products: List<SeasonalProductDto>
+    val distancePriority: String = "",
+    val sourceType: String = "",
+    val sourceNote: String = "",
+    val products: List<SeasonalProductDto> = emptyList()
 ) {
     val lat: Double
         get() = location.lat
@@ -73,23 +82,23 @@ data class SeasonalStoreDto(
 
 @Serializable
 data class ShopLocationDto(
-    val lat: Double,
-    val lng: Double
+    val lat: Double = 0.0,
+    val lng: Double = 0.0
 )
 
 @Serializable
 data class SeasonalProductDto(
-    val id: String,
-    val name: String,
-    val category: String,
-    val season: String,
-    val price: Int,
-    val currency: String,
-    val colors: List<String>,
-    val sizes: List<String>,
-    val stock: Int,
-    val soldMonthly: Int,
-    val image: String
+    val id: String = "",
+    val name: String = "",
+    val category: String = "",
+    val season: String = "",
+    val price: Int = 0,
+    val currency: String = "VND",
+    val colors: List<String> = emptyList(),
+    val sizes: List<String> = emptyList(),
+    val stock: Int = 0,
+    val soldMonthly: Int = 0,
+    val image: String = ""
 ) {
     val priceRange: String
         get() = "${price / 1000}k"

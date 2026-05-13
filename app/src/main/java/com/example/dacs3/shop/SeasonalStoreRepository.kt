@@ -1,12 +1,14 @@
 package com.example.dacs3.shop
 
 import android.content.Context
+import android.util.Log
 import kotlinx.serialization.json.Json
 
 object SeasonalStoreRepository {
 
     private val jsonParser = Json {
         ignoreUnknownKeys = true
+        isLenient = true
     }
 
     private var cachedStores: List<SeasonalStoreDto>? = null
@@ -22,12 +24,20 @@ object SeasonalStoreRepository {
             return it
         }
 
-        val json = loadJsonFromAssets(context)
-        val response = jsonParser.decodeFromString<SeasonalShopResponseDto>(json)
+        return try {
+            val json = loadJsonFromAssets(context)
+            val response = jsonParser.decodeFromString<SeasonalShopResponseDto>(json)
 
-        cachedStores = response.shops
+            cachedStores = response.shops
 
-        return response.shops
+            Log.d("SHOP_JSON", "Loaded shops: ${response.shops.size}")
+            Log.d("SHOP_JSON", "Meta totalShops: ${response.meta.totalShops}")
+
+            response.shops
+        } catch (e: Exception) {
+            Log.e("SHOP_JSON", "Failed to load generated.json: ${e.message}", e)
+            emptyList()
+        }
     }
 
     fun getStoresBySeason(
