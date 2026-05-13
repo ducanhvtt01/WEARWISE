@@ -40,6 +40,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -67,17 +68,20 @@ import java.util.Calendar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardContent(
-    currentProfile: Profile?, 
+    currentProfile: Profile?,
     closetItems: List<ClothingItem>,
     topFavoriteClothes: List<Pair<ClothingItem, Int>> = emptyList(),
     onLogOotd: (List<String>, String, String) -> Unit = { _, _, _ -> },
-    onNavigateToStylist: () -> Unit = {}
+    onNavigateToStylist: () -> Unit = {},
+    onNavigateToSeasonStores: (String) -> Unit = {}
 ) {
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
 
     var showMoodSheet by remember { mutableStateOf(false) }
     var showEventSheet by remember { mutableStateOf(false) }
+    var showShopSheet by remember { mutableStateOf(false) }
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var isLocationDenied by remember { mutableStateOf(false) }
 
@@ -332,6 +336,96 @@ fun DashboardContent(
         }
     }
 
+    if (showShopSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showShopSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+            ) {
+                Text(
+                    text = "Shop Autumn Collection",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Choose how you want to explore seasonal items.",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = {
+                        showShopSheet = false
+                        uriHandler.openUri(
+                            "https://shopee.vn/search?keyword=th%E1%BB%9Di%20trang%20m%C3%B9a%20thu"
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Icon(
+                        Icons.Outlined.LocalMall,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Text(
+                        text = "Shop online on Shopee",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        showShopSheet = false
+                        onNavigateToSeasonStores("autumn")
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.LocalMall,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Text(
+                        text = "Find nearby seasonal stores",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -419,7 +513,7 @@ fun DashboardContent(
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
                         Button(
-                            onClick = { uriHandler.openUri("https://shopee.vn") },
+                            onClick = { showShopSheet = true },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                             shape = RoundedCornerShape(12.dp),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),

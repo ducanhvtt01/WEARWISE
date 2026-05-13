@@ -6,7 +6,13 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -27,10 +33,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Khởi tạo Supabase trước
         SupabaseManager.init(this)
 
-        // Xử lý deep link OAuth nếu app được mở từ Google login
         try {
             supabase.handleDeeplinks(intent)
             Log.d("OAuthDebug", "handleDeeplinks called in onCreate")
@@ -99,14 +103,16 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (userId != null) {
-                    Log.d("OAuthDebug", "OAuth login success. Navigate to survey. userId=$userId")
+                    Log.d(
+                        "OAuthDebug",
+                        "OAuth login success. Check profile before navigate. userId=$userId"
+                    )
 
-                    navController.navigate("survey") {
-                        popUpTo("login") {
-                            inclusive = true
-                        }
-                        launchSingleTop = true
-                    }
+                    checkProfileAndNavigate(
+                        userId = userId,
+                        navController = navController,
+                        popUpRoute = "login"
+                    )
                 } else {
                     Log.e(
                         "OAuthDebug",

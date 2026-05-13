@@ -61,6 +61,7 @@ fun HomeUI(
     isDarkMode: Boolean = false,
     onThemeChange: (Boolean) -> Unit = {},
     onLogoutSuccess: () -> Unit,
+    onOpenSeasonStores: (String) -> Unit = {},
     viewModel: DashboardViewModel = viewModel()
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -68,6 +69,7 @@ fun HomeUI(
     var offsetY by remember { mutableFloatStateOf(0f) }
 
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
     var isAiScanning by remember { mutableStateOf(false) }
     var aiScanResultText by remember { mutableStateOf<String?>(null) }
     var rawScannedJson by remember { mutableStateOf<JSONObject?>(null) }
@@ -228,13 +230,16 @@ fun HomeUI(
                             }
                         }
                         DashboardContent(
-                            currentProfile = userProfile, 
+                            currentProfile = userProfile,
                             closetItems = closetItems,
                             topFavoriteClothes = topFavoriteClothes,
                             onLogOotd = { ids, event, mood ->
                                 viewModel.logOotd(userId, ids, null, null, event, mood) {}
                             },
-                            onNavigateToStylist = { selectedTab = 2 }
+                            onNavigateToStylist = { selectedTab = 2 },
+                            onNavigateToSeasonStores = { season ->
+                                onOpenSeasonStores(season)
+                            }
                         )
                     }
                     1 -> ClosetScreen(viewModel = viewModel) // [SỬA ĐỔI] TRUYỀN VIEWMODEL VÀO CLOSET SCREEN

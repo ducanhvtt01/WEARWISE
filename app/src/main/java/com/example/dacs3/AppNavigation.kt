@@ -17,7 +17,7 @@ import com.example.dacs3.survey.SurveyMasterScreen
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.launch
-
+import com.example.dacs3.shop.SeasonalStoresMapScreen
 
 @Composable
 fun AppNavigation(
@@ -26,6 +26,7 @@ fun AppNavigation(
     onThemeChange: (Boolean) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
         val session = supabase.auth.currentSessionOrNull()
         if (session != null) {
@@ -41,9 +42,11 @@ fun AppNavigation(
             LoginScreen(
                 showSplash = true,
                 onLoginSuccess = {
-                    val session1 = supabase.auth.currentSessionOrNull()
-                    if (session1 != null) scope.launch {
-                        checkProfileAndNavigate(session1.user?.id, navController)
+                    val session = supabase.auth.currentSessionOrNull()
+                    if (session != null) {
+                        scope.launch {
+                            checkProfileAndNavigate(session.user?.id, navController)
+                        }
                     }
                 }
             )
@@ -59,24 +62,29 @@ fun AppNavigation(
             LoginScreen(
                 showSplash = false,
                 onLoginSuccess = {
-                    val session1 = supabase.auth.currentSessionOrNull()
-                    if (session1 != null) scope.launch {
-                        checkProfileAndNavigate(session1.user?.id, navController, "login_no_splash")
+                    val session = supabase.auth.currentSessionOrNull()
+                    if (session != null) {
+                        scope.launch {
+                            checkProfileAndNavigate(
+                                userId = session.user?.id,
+                                navController = navController,
+                                popUpRoute = "login_no_splash"
+                            )
+                        }
                     }
                 }
             )
         }
 
-        composable(
-            route = "survey",
-            deepLinks = listOf(
-                navDeepLink { uriPattern = "io.supabase.user://survey" },
-                navDeepLink { uriPattern = "my-app-scheme://auth-callback" }
-            )
-        ) {
+        composable(route = "survey") {
             SurveyMasterScreen(
                 onFinish = {
-                    navController.navigate("home") { popUpTo("survey") { inclusive = true } }
+                    navController.navigate("home") {
+                        popUpTo("survey") {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -87,39 +95,91 @@ fun AppNavigation(
                 if (targetState.destination.route == "login_no_splash") {
                     androidx.compose.animation.ExitTransition.None
                 } else {
-                    null // Dùng mặc định
+                    null
                 }
             }
         ) {
             RequestAppPermissions()
+
             HomeUI(
                 isDarkMode = isDarkMode,
                 onThemeChange = onThemeChange,
                 onLogoutSuccess = {
-                    navController.navigate("login_no_splash") { popUpTo("home") { inclusive = true } }
+                    navController.navigate("login_no_splash") {
+                        popUpTo("home") {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                },
+                onOpenSeasonStores = { season ->
+                    navController.navigate("season_stores/$season")
+                }
+            )
+        }
+        composable("season_stores/{season}") { backStackEntry ->
+            val season = backStackEntry.arguments?.getString("season") ?: "autumn"
+
+            SeasonalStoresMapScreen(
+                season = season,
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
 
+
         composable(
             route = "stylist",
-            deepLinks = listOf(navDeepLink { uriPattern = "wearwise://stylist" })
+            deepLinks = listOf(
+                navDeepLink {
+                    uriPattern = "wearwise://stylist"
+                }
+            )
         ) {
             StylistScreen()
         }
     }
 }
 
-suspend fun checkProfileAndNavigate(userId: String?, navController: NavHostController, popUpRoute: String = "login") {
+suspend fun checkProfileAndNavigate(
+    userId: String?,
+    navController: NavHostController,
+    popUpRoute: String = "login"
+) {
     if (userId == null) return
-    try {
-        val profile = supabase.from("profiles").select {
-            filter { eq("id", userId) }
-        }.decodeSingleOrNull<Profile>()
 
-        val destination = if (profile != null && !profile.gender.isNullOrBlank()) "home" else "survey"
-        navController.navigate(destination) { popUpTo(popUpRoute) { inclusive = true } }
+    try {
+        val profile = supabase.from("profiles")
+            .select {
+                filter {
+                    eq("id", userId)
+                }
+            }
+            .decodeSingleOrNull<Profile>()
+
+        val isSurveyCompleted =
+            profile != null &&
+                    !profile.gender.isNullOrBlank()
+
+        val destination = if (isSurveyCompleted) {
+            "home"
+        } else {
+            "survey"
+        }
+
+        navController.navigate(destination) {
+            popUpTo(popUpRoute) {
+                inclusive = true
+            }
+            launchSingleTop = true
+        }
     } catch (e: Exception) {
-        navController.navigate("survey") { popUpTo(popUpRoute) { inclusive = true } }
+        navController.navigate("survey") {
+            popUpTo(popUpRoute) {
+                inclusive = true
+            }
+            launchSingleTop = true
+        }
     }
 }

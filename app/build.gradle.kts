@@ -115,4 +115,10 @@ dependencies {
     // Thư viện Cắt ảnh (Crop Image)
     implementation("com.github.CanHub:Android-Image-Cropper:4.5.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
+
+    // Thư viện map
+    implementation("com.google.maps.android:maps-compose:8.3.0")
+    implementation("com.google.android.gms:play-services-maps:19.2.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     }
