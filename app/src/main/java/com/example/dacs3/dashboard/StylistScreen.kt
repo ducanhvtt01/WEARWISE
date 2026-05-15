@@ -59,8 +59,32 @@ import java.time.LocalTime
 data class ChatMessage(
     val text: String,
     val isFromUser: Boolean,
-    val isError: Boolean = false
-)
+    val isError: Boolean = false,
+    val outfitIds: List<String>? = null
+) {
+    companion object {
+        fun fromText(rawText: String, isFromUser: Boolean, isError: Boolean = false): ChatMessage {
+            if (isFromUser || isError) return ChatMessage(text = rawText, isFromUser = isFromUser, isError = isError)
+            
+            val outfitIdRegex = Regex("\\[OUTFIT_IDS:\\s*(.+?)\\]")
+            val matchResult = outfitIdRegex.find(rawText)
+            val outfitIds = matchResult?.groupValues?.get(1)?.split(",")?.map { it.trim() }
+            
+            // Chấp nhận mọi số lượng món đồ (miễn là không có N/A)
+            val validOutfitIds = if (outfitIds != null && outfitIds.isNotEmpty() && !outfitIds.contains("N/A") && !outfitIds.any { it.isBlank() }) {
+                outfitIds
+            } else null
+
+            val cleanText = if (matchResult != null) {
+                rawText.replace(matchResult.value, "").trim()
+            } else {
+                rawText
+            }
+            
+            return ChatMessage(text = cleanText, isFromUser = false, outfitIds = validOutfitIds)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,7 +151,7 @@ fun StylistScreen(
 
     val generativeModel = remember(myClosetItems, currentTemp) {
         val closetData = if (myClosetItems.isNotEmpty()) {
-            myClosetItems.joinToString("\n") { "- ${it.clothes_name} (${it.category}, Color: ${it.mainColor})" }
+            myClosetItems.joinToString("\n") { "- ID: ${it.id} | ${it.clothes_name} (${it.category}, Color: ${it.mainColor})" }
         } else {
             "User's closet is currently empty."
         }
@@ -151,6 +175,10 @@ fun StylistScreen(
                     2. If they ask for general advice, you can answer freely.
                     3. Reply concisely, friendly, and logically. Format with bullet points if listing items.
                     4. IMPORTANT: Always reply in the exact same language the user uses.
+                    5. When recommending an outfit, YOU MUST suggest a complete set of items (at minimum 1 Top and 1 Bottom). To be professional and comprehensive, YOU SHOULD also suggest relevant Shoes and Accessories (Bags, Watches, etc.) from the inventory.
+                    6. For every outfit recommendation, YOU MUST include ALL selected item IDs at the very end of your message in this exact format: [OUTFIT_IDS: id1, id2, id3, ...]
+                    7. Do NOT include the [OUTFIT_IDS: ...] tag if you are not recommending specific items from the closet.
+                    8. NEVER use "N/A" inside the tag. If an item is missing from the closet, do not suggest it.
                 """.trimIndent()
                 )
             }
@@ -177,11 +205,11 @@ fun StylistScreen(
                 val response = chatSession.sendMessage(userPrompt)
                 val aiText = response.text ?: "Sorry, I couldn't process this request."
 
-                chatMessages.add(ChatMessage(text = aiText, isFromUser = false))
+                chatMessages.add(ChatMessage.fromText(rawText = aiText, isFromUser = false))
 
                 dashboardViewModel.saveChatToDatabase(
                     userMessage = userPrompt,
-                    aiMessage = aiText
+                    aiMessage = aiText // Lưu text gốc vào DB
                 )
 
                 dashboardViewModel.userProfile?.id?.let {
@@ -475,7 +503,22 @@ fun StylistScreen(
                                     contentPadding = PaddingValues(bottom = 16.dp, top = 8.dp)
                                 ) {
                                     items(chatMessages) { message ->
-                                        ChatBubble(message)
+                                        ChatBubble(
+                                            message = message,
+                                            onOutfitSelect = { ids ->
+                                                val selectedItems = ids.mapNotNull { id ->
+                                                    myClosetItems.find { it.id == id }
+                                                }
+
+                                                if (selectedItems.isNotEmpty()) {
+                                                    dashboardViewModel.aiCanvasOutfit.value = com.example.dacs3.connectDB.Outfit(selectedItems)
+                                                    showChat = false
+                                                    android.widget.Toast.makeText(context, "Outfit selected on Canvas!", android.widget.Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    android.widget.Toast.makeText(context, "Could not find these items in your closet.", android.widget.Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        )
                                         Spacer(modifier = Modifier.height(12.dp))
                                     }
                                     if (isAiTyping) {
@@ -964,30 +1007,26 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                 // Hiển thị đồ thật
                 val outfit = aiCanvasOutfit!!
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutfitItemPlaceholder(
-                        name = outfit.top.clothes_name,
-                        icon = Icons.Outlined.Checkroom,
-                        subtext = "Top • ${outfit.top.mainColor}",
-                        iconBgColor = MaterialTheme.colorScheme.surfaceVariant,
-                        iconColor = MaterialTheme.colorScheme.primary,
-                        imageUrl = outfit.top.imageUrl
-                    )
-                    OutfitItemPlaceholder(
-                        name = outfit.bottom.clothes_name,
-                        icon = Icons.Filled.Checkroom,
-                        subtext = "Bottom • ${outfit.bottom.mainColor}",
-                        iconBgColor = MaterialTheme.colorScheme.secondaryContainer,
-                        iconColor = MaterialTheme.colorScheme.secondary,
-                        imageUrl = outfit.bottom.imageUrl
-                    )
-                    OutfitItemPlaceholder(
-                        name = outfit.shoes.clothes_name,
-                        icon = Icons.Outlined.Checkroom,
-                        subtext = "Shoes • ${outfit.shoes.mainColor}",
-                        iconBgColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        iconColor = Color(0xFFFF9800),
-                        imageUrl = outfit.shoes.imageUrl
-                    )
+                    outfit.items.forEach { item ->
+                        OutfitItemPlaceholder(
+                            name = item.clothes_name,
+                            icon = Icons.Outlined.Checkroom,
+                            subtext = "${item.category} • ${item.mainColor}",
+                            iconBgColor = when(item.category.lowercase()) {
+                                "top" -> MaterialTheme.colorScheme.surfaceVariant
+                                "bottom" -> MaterialTheme.colorScheme.secondaryContainer
+                                "shoes" -> MaterialTheme.colorScheme.tertiaryContainer
+                                else -> MaterialTheme.colorScheme.primaryContainer
+                            },
+                            iconColor = when(item.category.lowercase()) {
+                                "top" -> MaterialTheme.colorScheme.primary
+                                "bottom" -> MaterialTheme.colorScheme.secondary
+                                "shoes" -> Color(0xFFFF9800)
+                                else -> MaterialTheme.colorScheme.tertiary
+                            },
+                            imageUrl = item.imageUrl
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
@@ -1013,7 +1052,7 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                     Button(
                         onClick = {
                             val userId = viewModel.userProfile?.id ?: ""
-                            val ids = listOfNotNull(outfit.top.id, outfit.bottom.id, outfit.shoes.id)
+                            val ids = outfit.items.mapNotNull { it.id }
                             if (userId.isNotBlank()) {
                                 viewModel.logOotd(userId, ids) {
                                     android.widget.Toast.makeText(
@@ -1143,42 +1182,67 @@ fun ChatBarSection(
 }
 
 @Composable
-fun ChatBubble(message: ChatMessage) {
+fun ChatBubble(
+    message: ChatMessage,
+    onOutfitSelect: (List<String>) -> Unit = {}
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (message.isFromUser) Arrangement.End else Arrangement.Start
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 20.dp,
-                        topEnd = 20.dp,
-                        bottomStart = if (message.isFromUser) 20.dp else 4.dp,
-                        bottomEnd = if (message.isFromUser) 4.dp else 20.dp
-                    )
-                )
-                .background(
-                    if (message.isError) MaterialTheme.colorScheme.errorContainer
-                    else if (message.isFromUser) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant
-                )
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+        Column(
+            modifier = Modifier.fillMaxWidth(0.85f),
+            horizontalAlignment = if (message.isFromUser) Alignment.End else Alignment.Start
         ) {
-            if (message.isFromUser || message.isError) {
-                Text(
-                    text = message.text,
-                    color = if (message.isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 15.sp,
-                    lineHeight = 22.sp
-                )
-            } else {
-                MarkdownText(
-                    markdown = message.text,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 15.sp
-                )
+            Box(
+                modifier = Modifier
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 20.dp,
+                            topEnd = 20.dp,
+                            bottomStart = if (message.isFromUser) 20.dp else 4.dp,
+                            bottomEnd = if (message.isFromUser) 4.dp else 20.dp
+                        )
+                    )
+                    .background(
+                        if (message.isError) MaterialTheme.colorScheme.errorContainer
+                        else if (message.isFromUser) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                if (message.isFromUser || message.isError) {
+                    Text(
+                        text = message.text,
+                        color = if (message.isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp
+                    )
+                } else {
+                    MarkdownText(
+                        markdown = message.text,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 15.sp
+                    )
+                }
+            }
+
+            // Show Select Button if outfit IDs are available
+            if (!message.isFromUser && message.outfitIds != null && message.outfitIds.size >= 3) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onOutfitSelect(message.outfitIds) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.padding(start = 4.dp)
+                ) {
+                    Icon(Icons.Filled.Checkroom, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Select this Outfit", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
             }
         }
     }

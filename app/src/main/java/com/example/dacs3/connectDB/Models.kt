@@ -52,11 +52,9 @@ data class ClothingItem(
     val status: String = "active"
 )
 
-// 3. Bộ phối đồ
+// 3. Bộ phối đồ (Outfit)
 data class Outfit(
-    val top: ClothingItem,
-    val bottom: ClothingItem,
-    val shoes: ClothingItem
+    val items: List<ClothingItem>
 )
 
 @Serializable

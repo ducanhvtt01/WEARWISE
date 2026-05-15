@@ -365,7 +365,7 @@ class DashboardViewModel : ViewModel() {
                     .decodeList<ChatMessageModel>()
 
                 val uiMessages = messages.map {
-                    ChatMessage(text = it.content, isFromUser = it.role == "user")
+                    ChatMessage.fromText(rawText = it.content, isFromUser = it.role == "user")
                 }
 
                 launch(Dispatchers.Main) {
@@ -477,7 +477,7 @@ class DashboardViewModel : ViewModel() {
                     val shoes = currentItems.find { it.id == ids[2] }
 
                     if (top != null && bottom != null && shoes != null) {
-                        aiCanvasOutfit.value = Outfit(top, bottom, shoes)
+                        aiCanvasOutfit.value = Outfit(listOf(top, bottom, shoes))
                     }
                 }
             } catch (e: Exception) {

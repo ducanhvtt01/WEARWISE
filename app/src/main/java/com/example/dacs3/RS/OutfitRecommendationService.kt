@@ -47,7 +47,7 @@ class OutfitRecommendationService {
 
                     // Nếu điểm > ngưỡng nhất định (ví dụ 0.5) thì thêm vào danh sách
                     if (score > 0.6) {
-                        possibleOutfits.add(Outfit(top, bottom, shoe))
+                        possibleOutfits.add(Outfit(listOf(top, bottom, shoe)))
                     }
                 }
             }

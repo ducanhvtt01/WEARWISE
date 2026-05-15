@@ -40,7 +40,7 @@ class OutfitHybridRecommender(private val model: Sequential) {
                     // AI dự đoán độ phù hợp (0.0 -> 1.0)
                     val score = model.predict(features).toFloat()
 
-                    rankedOutfits.add(Outfit(t, b, s) to score)
+                    rankedOutfits.add(Outfit(listOf(t, b, s)) to score)
                 }
             }
         }
