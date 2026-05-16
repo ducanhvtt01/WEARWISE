@@ -70,12 +70,12 @@ data class SeasonalStoreDto(
 
     val distanceText: String
         get() = when (distancePriority) {
-            "near_da_nang_center" -> "Gần trung tâm Đà Nẵng"
-            "near_beach" -> "Gần biển"
-            "da_nang_suburban" -> "Ngoại ô Đà Nẵng"
-            "central_vietnam" -> "Miền Trung"
-            "central_highlands" -> "Tây Nguyên"
-            "mekong" -> "Miền Tây"
+            "near_da_nang_center" -> "Near Da Nang Center"
+            "near_beach" -> "Near the Beach"
+            "da_nang_suburban" -> "Da Nang Suburbs"
+            "central_vietnam" -> "Central Vietnam"
+            "central_highlands" -> "Central Highlands"
+            "mekong" -> "Mekong Delta"
             else -> area
         }
 }

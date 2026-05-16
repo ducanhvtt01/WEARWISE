@@ -63,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dacs3.connectDB.ClothingItem
 import com.example.dacs3.connectDB.Profile
+import com.example.dacs3.ui.components.EmptyWardrobeState
+import com.example.dacs3.ui.components.ShimmerCard
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,6 +107,31 @@ fun DashboardContent(
         "Emotional" to listOf("Elegant", "Romantic", "Nostalgic", "Edgy")
     )
 
+    // Tính toán số lượng đồ chưa mặc > 3 tháng
+    val deadItemsCount = remember(closetItems) {
+        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val todayDate = java.util.Date()
+        closetItems.count { item ->
+            val referenceDateString = item.lastWornDate ?: item.createdAt
+            if (referenceDateString != null) {
+                try {
+                    val refDate = formatter.parse(referenceDateString.substring(0, 10))
+                    if (refDate != null) {
+                        val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                        val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(
+                            diffInMillies,
+                            java.util.concurrent.TimeUnit.MILLISECONDS
+                        )
+                        diffInDays > 90
+                    } else false
+                } catch (e: Exception) {
+                    false
+                }
+            } else false
+        }
+    }
+    var showDeclutterWarning by remember { mutableStateOf(true) }
+
     if (showOotdSheet) {
         ModalBottomSheet(
             onDismissRequest = { showOotdSheet = false },
@@ -125,11 +152,11 @@ fun DashboardContent(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                
+
                 val tops = closetItems.filter { it.category.equals("top", true) }
                 val bottoms = closetItems.filter { it.category.equals("bottom", true) }
                 val shoes = closetItems.filter { it.category.equals("shoes", true) }
-                
+
                 item { Text("Select Top:", fontWeight = FontWeight.Bold) }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -142,7 +169,7 @@ fun DashboardContent(
                         }
                     }
                 }
-                
+
                 item { Text("Select Bottom:", fontWeight = FontWeight.Bold) }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -155,7 +182,7 @@ fun DashboardContent(
                         }
                     }
                 }
-                
+
                 item { Text("Select Shoes:", fontWeight = FontWeight.Bold) }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -168,12 +195,16 @@ fun DashboardContent(
                         }
                     }
                 }
-                
+
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = {
-                            val ids = listOfNotNull(selectedOotdTop?.id, selectedOotdBottom?.id, selectedOotdShoes?.id)
+                            val ids = listOfNotNull(
+                                selectedOotdTop?.id,
+                                selectedOotdBottom?.id,
+                                selectedOotdShoes?.id
+                            )
                             if (ids.isNotEmpty()) {
                                 onLogOotd(ids, selectedEvent, selectedMood)
                                 showOotdSheet = false
@@ -546,6 +577,55 @@ fun DashboardContent(
             }
         }
 
+        if (deadItemsCount > 0 && showDeclutterWarning) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 28.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(20.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.Warning, null, tint = MaterialTheme.colorScheme.error)
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Declutter Time!",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                "You have $deadItemsCount items unworn in 3+ months. Consider donating or selling them to keep your closet fresh.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        androidx.compose.material3.IconButton(onClick = {
+                            showDeclutterWarning = false
+                        }) {
+                            Icon(
+                                Icons.Filled.KeyboardArrowDown,
+                                "Dismiss",
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Column(modifier = Modifier.padding(bottom = 28.dp)) {
                 Text(
@@ -625,7 +705,11 @@ fun DashboardContent(
         item {
             Card(
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
+                        alpha = 0.5f
+                    )
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onNavigateToStylist() }
@@ -665,11 +749,14 @@ fun DashboardContent(
                             Text("Open AI Stylist", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    
+
                     Box(
                         modifier = Modifier
                             .size(64.dp)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
+                            .background(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                CircleShape
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -684,10 +771,12 @@ fun DashboardContent(
         }
 
         item { Spacer(modifier = Modifier.height(36.dp)) }
-        
+
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -702,7 +791,7 @@ fun DashboardContent(
                 }
             }
         }
-        
+
         if (topFavoriteClothes.isNotEmpty()) {
             item {
                 Text(
@@ -716,11 +805,44 @@ fun DashboardContent(
             item {
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp)
                 ) {
                     items(topFavoriteClothes.size) { index ->
                         val (item, count) = topFavoriteClothes[index]
                         FavoriteItemCard(item.clothes_name, count.toString(), item.imageUrl)
+                    }
+                }
+            }
+        } else if (closetItems.isEmpty()) {
+            // ─── EMPTY STATE (Premium): Shown when closet is completely empty ───
+            item {
+                EmptyWardrobeState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp)
+                )
+            }
+        } else {
+            // Closet has items but no OOTD logged yet — show shimmer placeholders
+            item {
+                Text(
+                    "Start logging your OOTDs to see your favorites here!",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(bottom = 24.dp)
+                ) {
+                    items(4) {
+                        ShimmerCard(
+                            modifier = Modifier.size(width = 110.dp, height = 130.dp)
+                        )
                     }
                 }
             }
@@ -742,14 +864,17 @@ fun DashboardContent(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val topsCount = closetItems.count { it.category.equals("top", ignoreCase = true) }
-                val bottomsCount = closetItems.count { it.category.equals("bottom", ignoreCase = true) }
-                val shoesCount = closetItems.count { it.category.equals("shoes", ignoreCase = true) }
-                val accsCount = closetItems.count { it.category.equals("accessories", ignoreCase = true) }
+                val bottomsCount =
+                    closetItems.count { it.category.equals("bottom", ignoreCase = true) }
+                val shoesCount =
+                    closetItems.count { it.category.equals("shoes", ignoreCase = true) }
+                val accsCount =
+                    closetItems.count { it.category.equals("accessories", ignoreCase = true) }
 
                 val stats = listOf(
-                    "Tops" to topsCount.toString(), 
-                    "Bottoms" to bottomsCount.toString(), 
-                    "Shoes" to shoesCount.toString(), 
+                    "Tops" to topsCount.toString(),
+                    "Bottoms" to bottomsCount.toString(),
+                    "Shoes" to shoesCount.toString(),
                     "Accs" to accsCount.toString()
                 )
                 items(stats.size) { index ->

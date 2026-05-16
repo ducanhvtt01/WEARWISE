@@ -100,8 +100,39 @@ fun ProfileScreen(
     
     var tempImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val measurementSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val styleSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val editProfileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val imageSourceSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val userId = remember { supabase.auth.currentUserOrNull()?.id ?: "" }
+
+    val itemsList by viewModel.clothingItems.collectAsState()
+    val feedbackMap by viewModel.clothingFeedbackMap.collectAsState()
+
+    // Lọc ra danh sách đồ "Needs Love"
+    val deadItems = remember(itemsList, feedbackMap) {
+        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val todayDate = java.util.Date()
+        itemsList.filter { item ->
+            val rating = feedbackMap[item.id]
+            if (rating == -1) return@filter true // Đồ bị Dislike
+            
+            // Hoặc đồ hơn 90 ngày chưa mặc
+            val referenceDateString = item.lastWornDate ?: item.createdAt
+            if (referenceDateString != null) {
+                try {
+                    val refDate = formatter.parse(referenceDateString.substring(0, 10))
+                    if (refDate != null) {
+                        val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                        val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(diffInMillies, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        diffInDays > 90
+                    } else false
+                } catch (e: Exception) { false }
+            } else false
+        }
+    }
+    
+    var showDeadItemsSheet by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -225,7 +256,7 @@ fun ProfileScreen(
     if (showMeasurementSheet && userProfile != null) {
         ModalBottomSheet(
             onDismissRequest = { showMeasurementSheet = false },
-            sheetState = sheetState,
+            sheetState = measurementSheetState,
             containerColor = MaterialTheme.colorScheme.background
         ) {
             MeasurementEditSheetContent(
@@ -245,7 +276,7 @@ fun ProfileScreen(
     if (showStyleSheet && userProfile != null) {
         ModalBottomSheet(
             onDismissRequest = { showStyleSheet = false },
-            sheetState = sheetState,
+            sheetState = styleSheetState,
             containerColor = MaterialTheme.colorScheme.background
         ) {
             StylePreferencesSheetContent(
@@ -263,7 +294,7 @@ fun ProfileScreen(
     if (showEditProfileSheet && userProfile != null) {
         ModalBottomSheet(
             onDismissRequest = { showEditProfileSheet = false },
-            sheetState = sheetState,
+            sheetState = editProfileSheetState,
             containerColor = MaterialTheme.colorScheme.background
         ) {
             EditProfileSheetContent(
@@ -281,7 +312,7 @@ fun ProfileScreen(
     if (showImageSourceSheet) {
         ModalBottomSheet(
             onDismissRequest = { showImageSourceSheet = false },
-            sheetState = sheetState,
+            sheetState = imageSourceSheetState,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
             ImageSourceSheetContent(
@@ -297,7 +328,7 @@ fun ProfileScreen(
                         cameraSourceLauncher.launch(uri)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        android.widget.Toast.makeText(context, "Không thể mở camera", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "Cannot open camera", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
             )
@@ -322,6 +353,20 @@ fun ProfileScreen(
                 TextButton(onClick = { showSettingsDialog = false }) { Text("Later") }
             }
         )
+    }
+
+    if (showDeadItemsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showDeadItemsSheet = false },
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            DeadItemsSheetContent(
+                deadItems = deadItems,
+                feedbackMap = feedbackMap,
+                onResetFeedback = { itemId -> viewModel.saveClothingFeedback(itemId, 0) }, // 0 là xóa feedback
+                onClose = { showDeadItemsSheet = false }
+            )
+        }
     }
 
     LazyColumn(
@@ -500,6 +545,20 @@ fun ProfileScreen(
 
         item { Spacer(modifier = Modifier.height(24.dp)) }
 
+        // --- CLOSET MANAGEMENT SECTION ---
+        item {
+            SectionTitle("Closet Management")
+            
+            SettingRow(
+                icon = Icons.Outlined.HeartBroken,
+                title = "Needs Love (${deadItems.size} items)",
+                subtitle = "Items unworn for 3+ months or disliked",
+                onClick = { showDeadItemsSheet = true }
+            )
+        }
+
+        item { Spacer(modifier = Modifier.height(24.dp)) }
+
         // --- APP SETTINGS SECTION ---
         item {
             SectionTitle("App Settings")
@@ -536,11 +595,6 @@ fun ProfileScreen(
                 title = "Dark Mode",
                 isChecked = isDarkMode,
                 onCheckedChange = onThemeChange
-            )
-            SettingRow(
-                icon = Icons.Outlined.Language,
-                title = "Language",
-                subtitle = "English (US)"
             )
         }
 
@@ -731,21 +785,21 @@ fun MeasurementEditSheetContent(
     onSave: (Int?, Int?, String, String, String, String, Int?) -> Unit,
     onCancel: () -> Unit
 ) {
-    var heightInput by remember { mutableStateOf(currentProfile.heightCm.toInt().toString()) }
-    var weightInput by remember { mutableStateOf(currentProfile.weightKg.toInt().toString()) }
+    var heightInput by remember { mutableStateOf(currentProfile.heightCm.let { if (it.isNaN()) "0" else it.toInt().toString() }) }
+    var weightInput by remember { mutableStateOf(currentProfile.weightKg.let { if (it.isNaN()) "0" else it.toInt().toString() }) }
     var shoeSizeInput by remember { mutableStateOf(currentProfile.shoeSizeEu.toString()) }
 
     var selectedShape by remember {
-        mutableStateOf(currentProfile.bodyShape.takeIf { it.isNotBlank() } ?: "Rectangle")
+        mutableStateOf(currentProfile.bodyShape.takeIf { !it.isNullOrBlank() } ?: "Rectangle")
     }
     var selectedSkinTone by remember {
-        mutableStateOf(currentProfile.skinTone.takeIf { it.isNotBlank() } ?: "Neutral")
+        mutableStateOf(currentProfile.skinTone.takeIf { !it.isNullOrBlank() } ?: "Neutral")
     }
     var selectedTopSize by remember {
-        mutableStateOf(currentProfile.topSize.takeIf { it.isNotBlank() } ?: "M")
+        mutableStateOf(currentProfile.topSize.takeIf { !it.isNullOrBlank() } ?: "M")
     }
     var selectedBottomSize by remember {
-        mutableStateOf(currentProfile.bottomSize.takeIf { it.isNotBlank() } ?: "M")
+        mutableStateOf(currentProfile.bottomSize.takeIf { !it.isNullOrBlank() } ?: "M")
     }
 
     val scrollState = rememberScrollState() // Thêm thanh cuộn vì nội dung dài
@@ -889,9 +943,9 @@ fun StylePreferencesSheetContent(
 
     // Dùng mutableStateListOf để dễ thêm/xoá item khi người dùng click
     val selectedStyles =
-        remember { mutableStateListOf(*currentProfile.favoriteStyles.toTypedArray()) }
+        remember { mutableStateListOf(*(currentProfile.favoriteStyles?.toTypedArray() ?: emptyArray())) }
     val selectedColors =
-        remember { mutableStateListOf(*currentProfile.favoriteColors.toTypedArray()) }
+        remember { mutableStateListOf(*(currentProfile.favoriteColors?.toTypedArray() ?: emptyArray())) }
 
     val scrollState = rememberScrollState()
 
@@ -989,22 +1043,32 @@ fun DropdownSelector(
     onOptionSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    
+    Box(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = selectedOption,
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            trailingIcon = { 
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown, 
+                    contentDescription = null
+                ) 
+            },
             shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.menuAnchor().fillMaxWidth()
+            modifier = Modifier.fillMaxWidth()
         )
-        ExposedDropdownMenu(
+        
+        // Transparent overlay to capture clicks safely
+        Surface(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { expanded = true },
+            color = Color.Transparent
+        ) {}
+        
+        DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
@@ -1127,5 +1191,98 @@ fun SettingToggleRow(
                 uncheckedThumbColor = MaterialTheme.colorScheme.surface
             )
         )
+    }
+}
+
+// -------------------------------------------------------------
+// 3. DEAD ITEMS SHEET (NEEDS LOVE)
+// -------------------------------------------------------------
+@Composable
+fun DeadItemsSheetContent(
+    deadItems: List<com.example.dacs3.connectDB.ClothingItem>,
+    feedbackMap: Map<String, Int>,
+    onResetFeedback: (String) -> Unit,
+    onClose: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Needs Love ❤️",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Text(
+            text = "These items haven't been worn in 3 months or were disliked. Give them another chance!",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 24.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+
+        if (deadItems.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                Text("Your closet is perfectly utilized! ✨", color = MaterialTheme.colorScheme.primary)
+            }
+        } else {
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(deadItems.size) { index ->
+                    val item = deadItems[index]
+                    val isDisliked = feedbackMap[item.id] == -1
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)).background(Color.Gray),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (item.imageUrl.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = item.imageUrl,
+                                        contentDescription = item.clothes_name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(Icons.Outlined.Checkroom, null, tint = Color.White)
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(item.clothes_name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                if (isDisliked) {
+                                    Text("Disliked 👎", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                } else {
+                                    Text("Unworn > 3M 🕸️", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                }
+                            }
+                            if (isDisliked) {
+                                OutlinedButton(onClick = { item.id?.let { onResetFeedback(it) } }) {
+                                    Text("Reset", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onClose, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+            Text("Done")
+        }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }

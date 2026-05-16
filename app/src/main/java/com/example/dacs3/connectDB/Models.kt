@@ -49,12 +49,23 @@ data class ClothingItem(
     @SerialName("main_color") val mainColor: String? = null,
     val seasons: List<String>? = null,
     val occasions: List<String>? = null,
-    val status: String = "active"
+    val status: String = "active",
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("last_worn_date") val lastWornDate: String? = null
 )
 
 // 3. Bộ phối đồ (Outfit)
 data class Outfit(
     val items: List<ClothingItem>
+)
+
+@Serializable
+data class ClothingFeedback(
+    val id: String? = null,
+    @SerialName("user_id") val userId: String,
+    @SerialName("clothing_id") val clothingId: String,
+    val rating: Int, // 1 for Like, -1 for Dislike
+    @SerialName("created_at") val createdAt: String? = null
 )
 
 @Serializable

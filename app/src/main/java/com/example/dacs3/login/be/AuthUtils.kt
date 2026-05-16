@@ -21,8 +21,8 @@ suspend fun signInWithSocial(provider: OAuthProvider): Boolean {
 
         true
     } catch (e: Exception) {
-        Log.e("AuthError", "Đăng nhập social thất bại: ${e.message}", e)
-        authErrorMessage = "Lỗi: ${e.localizedMessage ?: "Không thể kết nối đến máy chủ"}"
+        Log.e("AuthError", "Social login failed: ${e.message}", e)
+        authErrorMessage = "Error: ${e.localizedMessage ?: "Cannot connect to server"}"
         false
     }
 }

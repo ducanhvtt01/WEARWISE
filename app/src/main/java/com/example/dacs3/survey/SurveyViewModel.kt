@@ -43,7 +43,7 @@ class SurveyViewModel : ViewModel() {
                 val user = supabase.auth.currentUserOrNull()
 
                 if (session == null || user == null) {
-                    errorMessage = "Không tìm thấy phiên đăng nhập. Vui lòng đăng nhập lại."
+                    errorMessage = "Login session not found. Please log in again."
                     return@launch
                 }
 
@@ -73,7 +73,7 @@ class SurveyViewModel : ViewModel() {
                 updateSuccess = true
             } catch (e: Exception) {
                 updateSuccess = false
-                errorMessage = "Không thể cập nhật khảo sát. Vui lòng thử lại."
+                errorMessage = "Could not update survey. Please try again."
             } finally {
                 isUpdating = false
             }

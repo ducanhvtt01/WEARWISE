@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -38,6 +39,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,11 +62,12 @@ data class ChatMessage(
     val text: String,
     val isFromUser: Boolean,
     val isError: Boolean = false,
-    val outfitIds: List<String>? = null
+    val outfitIds: List<String>? = null,
+    val image: android.graphics.Bitmap? = null
 ) {
     companion object {
-        fun fromText(rawText: String, isFromUser: Boolean, isError: Boolean = false): ChatMessage {
-            if (isFromUser || isError) return ChatMessage(text = rawText, isFromUser = isFromUser, isError = isError)
+        fun fromText(rawText: String, isFromUser: Boolean, isError: Boolean = false, image: android.graphics.Bitmap? = null): ChatMessage {
+            if (isFromUser || isError) return ChatMessage(text = rawText, isFromUser = isFromUser, isError = isError, image = image)
             
             val outfitIdRegex = Regex("\\[OUTFIT_IDS:\\s*(.+?)\\]")
             val matchResult = outfitIdRegex.find(rawText)
@@ -98,8 +101,21 @@ fun StylistScreen(
 
     // Thêm DrawerState để điều khiển thanh trượt lịch sử
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    
+    // Style Matcher Service
+    val styleMatcherService = remember { 
+        com.example.dacs3.RS.StyleMatcherService(com.example.dacs3.BuildConfig.GEMINI_API_KEY) 
+    }
 
     var promptText by remember { mutableStateOf("") }
+    var socialTrends by remember { mutableStateOf("") }
+
+    // Fetch Social Trends when profile is available
+    LaunchedEffect(dashboardViewModel.userProfile) {
+        dashboardViewModel.userProfile?.favoriteStyles?.let {
+            socialTrends = dashboardViewModel.getSocialStyleTrends(it)
+        }
+    }
     var isAiTyping by remember { mutableStateOf(false) }
     var showChat by remember { mutableStateOf(false) }
 
@@ -111,6 +127,7 @@ fun StylistScreen(
 
     val currentTemp by weatherViewModel.temperature.collectAsState()
     val myClosetItems by dashboardViewModel.clothingItems.collectAsState()
+    val feedbackMap by dashboardViewModel.clothingFeedbackMap.collectAsState()
     val chatSessions by dashboardViewModel.chatSessions.collectAsState()
 
     // 1. THÊM BIẾN TRIGGER ĐỂ ÉP AI XÓA TRÍ NHỚ
@@ -149,6 +166,7 @@ fun StylistScreen(
         }
     }
 
+
     val generativeModel = remember(myClosetItems, currentTemp) {
         val closetData = if (myClosetItems.isNotEmpty()) {
             myClosetItems.joinToString("\n") { "- ID: ${it.id} | ${it.clothes_name} (${it.category}, Color: ${it.mainColor})" }
@@ -157,7 +175,7 @@ fun StylistScreen(
         }
 
         GenerativeModel(
-            modelName = "gemini-2.5-flash",
+            modelName = "gemini-3.1-flash-lite",
             apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
             systemInstruction = content {
                 text(
@@ -167,6 +185,7 @@ fun StylistScreen(
                     
                     CURRENT CONTEXT:
                     - Local Weather: $currentTemp
+                    - Community Fashion Trends: $socialTrends
                     - User's actual closet inventory: 
                     $closetData
                     
@@ -188,6 +207,89 @@ fun StylistScreen(
     // 2. CẬP NHẬT REMEMBER CỦA CHAT SESSION THEO TRIGGER VÀ HISTORY
     val chatSession = remember(generativeModel, chatSessionTrigger, chatHistoryContext) {
         generativeModel.startChat(history = chatHistoryContext)
+    }
+
+    // --- STYLE MATCH: TRÌNH CHỌN ẢNH IDOL ---
+    val photoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            isAiTyping = true
+            showChat = true
+            
+            scope.launch {
+                try {
+                    // Chuyển việc giải mã ảnh sang Dispatchers.IO để tránh làm treo UI
+                    val bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        if (android.os.Build.VERSION.SDK_INT < 28) {
+                            android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                        } else {
+                            val source = android.graphics.ImageDecoder.createSource(context.contentResolver, it)
+                            android.graphics.ImageDecoder.decodeBitmap(source)
+                        }
+                    }
+
+                    // 1. Hiện hình ảnh và câu lệnh của người dùng vào chat bằng tiếng Anh
+                    chatMessages.add(ChatMessage(
+                        text = "Find items in my closet similar to the person in this photo.",
+                        isFromUser = true,
+                        image = bitmap
+                    ))
+
+                    val matches = styleMatcherService.matchCelebrityStyle(bitmap, myClosetItems, feedbackMap)
+    if (matches.isNotEmpty()) {
+                        val ids = matches.mapNotNull { it.id }
+                        val itemDetails = matches.joinToString("\n") { 
+                            "- ${it.clothes_name} (Category: ${it.category}, Color: ${it.mainColor})" 
+                        }
+                        
+                        // Improved professional prompt for the AI Stylist's response
+                        val hiddenPrompt = """
+                            COMPARE & CONTRAST TASK:
+                            I want to recreate the celebrity's outfit in the attached photo using my own items.
+                            Here are the specific items from my closet that we are considering:
+                            $itemDetails
+                        
+                            Please provide a STRICT and HONEST professional analysis:
+                            1. Similarity: How well do my items match the celebrity's look in terms of color, silhouette, and vibe?
+                            2. Differences (The Gap): Be brutally honest about the differences. (e.g., "Your top is cotton while the celebrity wears silk", or "The shade of blue in your closet is much darker").
+                            3. Stylist's Advice: How should I wear or tweak these items to bridge the gap and get as close as possible to the inspiration photo?
+                            
+                            Style Verdict: Give a score out of 10 for the "Match Accuracy".
+                            
+                            CRITICAL: End your response with the tag: [OUTFIT_IDS: ${ids.joinToString(", ")}]
+                        """.trimIndent()
+                        
+                        val response = chatSession.sendMessage(
+                            com.google.ai.client.generativeai.type.content {
+                                image(bitmap)
+                                text(hiddenPrompt)
+                            }
+                        )
+                        val aiText = response.text ?: ""
+                        
+                        chatMessages.add(ChatMessage.fromText(rawText = aiText, isFromUser = false))
+                        
+                        // Lưu vào database
+                        dashboardViewModel.saveChatToDatabase(
+                            userMessage = "[Style Match Image]", 
+                            aiMessage = aiText
+                        )
+                    } else {
+                        chatMessages.add(ChatMessage(
+                            text = "Sorry, I couldn't find any items in your closet that match this celebrity style.",
+                            isFromUser = false,
+                            isError = true
+                        ))
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    chatMessages.add(ChatMessage(text = "Error analyzing image. Please try again.", isFromUser = false, isError = true))
+                } finally {
+                    isAiTyping = false
+                }
+            }
+        }
     }
 
     fun sendMessageToAI(userPrompt: String) {
@@ -517,6 +619,24 @@ fun StylistScreen(
                                                 } else {
                                                     android.widget.Toast.makeText(context, "Could not find these items in your closet.", android.widget.Toast.LENGTH_SHORT).show()
                                                 }
+                                            },
+                                            onLogOotd = { ids ->
+                                                dashboardViewModel.userProfile?.id?.let { userId ->
+                                                    val tempVal = currentTemp.removeSuffix("°C").replace(",", ".").toFloatOrNull()
+                                                    dashboardViewModel.logOotd(
+                                                        userId = userId,
+                                                        clothingIds = ids,
+                                                        weatherMain = "AI Recommendation",
+                                                        temp = tempVal,
+                                                        onSuccess = {
+                                                            android.widget.Toast.makeText(context, "Saved to OOTD Log! ✨", android.widget.Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    )
+                                                }
+                                            },
+                                            onItemFeedback = { id, rating ->
+                                                dashboardViewModel.saveClothingFeedback(id, rating)
+                                                android.widget.Toast.makeText(context, if (rating > 0) "Glad you like it! 👍" else "Got it, I'll avoid this! 👎", android.widget.Toast.LENGTH_SHORT).show()
                                             }
                                         )
                                         Spacer(modifier = Modifier.height(12.dp))
@@ -537,7 +657,8 @@ fun StylistScreen(
                             isTyping = isAiTyping,
                             onValueChange = { promptText = it },
                             onSend = { sendMessageToAI(promptText) },
-                            onFocus = { showChat = true }
+                            onFocus = { showChat = true },
+                            onImageSelect = { photoLauncher.launch("image/*") }
                         )
                     }
                 }
@@ -620,7 +741,7 @@ fun StylistScreen(
                         scope.launch {
                             try {
                                 val generativeModelPack = GenerativeModel(
-                                    modelName = "gemini-2.5-flash",
+                                    modelName = "gemini-3.1-flash-lite",
                                     apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
                                 )
 
@@ -951,6 +1072,7 @@ fun QuickPromptsSection(onPromptClick: (String) -> Unit) {
 fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
     val aiCanvasOutfit by viewModel.aiCanvasOutfit.collectAsState()
     val isLoading = viewModel.isCanvasLoading
+    val canvasError = viewModel.canvasError
     val context = LocalContext.current
 
     Card(
@@ -1008,24 +1130,36 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                 val outfit = aiCanvasOutfit!!
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     outfit.items.forEach { item ->
-                        OutfitItemPlaceholder(
-                            name = item.clothes_name,
-                            icon = Icons.Outlined.Checkroom,
-                            subtext = "${item.category} • ${item.mainColor}",
-                            iconBgColor = when(item.category.lowercase()) {
-                                "top" -> MaterialTheme.colorScheme.surfaceVariant
-                                "bottom" -> MaterialTheme.colorScheme.secondaryContainer
-                                "shoes" -> MaterialTheme.colorScheme.tertiaryContainer
-                                else -> MaterialTheme.colorScheme.primaryContainer
-                            },
-                            iconColor = when(item.category.lowercase()) {
-                                "top" -> MaterialTheme.colorScheme.primary
-                                "bottom" -> MaterialTheme.colorScheme.secondary
-                                "shoes" -> Color(0xFFFF9800)
-                                else -> MaterialTheme.colorScheme.tertiary
-                            },
-                            imageUrl = item.imageUrl
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutfitItemPlaceholder(
+                                    name = item.clothes_name,
+                                    icon = Icons.Outlined.Checkroom,
+                                    subtext = "${item.category} • ${item.mainColor}",
+                                    iconBgColor = when(item.category.lowercase()) {
+                                        "top" -> MaterialTheme.colorScheme.surfaceVariant
+                                        "bottom" -> MaterialTheme.colorScheme.secondaryContainer
+                                        "shoes" -> MaterialTheme.colorScheme.tertiaryContainer
+                                        else -> MaterialTheme.colorScheme.primaryContainer
+                                    },
+                                    iconColor = when(item.category.lowercase()) {
+                                        "top" -> MaterialTheme.colorScheme.primary
+                                        "bottom" -> MaterialTheme.colorScheme.secondary
+                                        "shoes" -> Color(0xFFFF9800)
+                                        else -> MaterialTheme.colorScheme.tertiary
+                                    },
+                                    imageUrl = item.imageUrl
+                                )
+                            }
+                            Column {
+                                IconButton(onClick = { viewModel.saveClothingFeedback(item.id ?: "", 1) }) {
+                                    Icon(Icons.Default.ThumbUp, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { viewModel.saveClothingFeedback(item.id ?: "", -1) }) {
+                                    Icon(Icons.Default.ThumbDown, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -1092,6 +1226,16 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                 }
             } else {
                 // Trạng thái rỗng: Cần gợi ý
+                if (canvasError != null) {
+                    Text(
+                        text = canvasError,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                }
+
                 Button(
                     onClick = { viewModel.generateCanvasOutfit(weatherTemp) },
                     modifier = Modifier.padding(vertical = 32.dp),
@@ -1113,7 +1257,8 @@ fun ChatBarSection(
     isTyping: Boolean,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    onFocus: () -> Unit = {}
+    onFocus: () -> Unit = {},
+    onImageSelect: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -1153,6 +1298,19 @@ fun ChatBarSection(
             singleLine = true
         )
 
+        IconButton(
+            onClick = onImageSelect,
+            modifier = Modifier.padding(horizontal = 4.dp),
+            enabled = !isTyping
+        ) {
+            Icon(
+                Icons.Filled.PhotoCamera,
+                contentDescription = "Style Match",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
         Box(
             modifier = Modifier
                 .size(42.dp)
@@ -1184,7 +1342,9 @@ fun ChatBarSection(
 @Composable
 fun ChatBubble(
     message: ChatMessage,
-    onOutfitSelect: (List<String>) -> Unit = {}
+    onOutfitSelect: (List<String>) -> Unit = {},
+    onLogOotd: (List<String>) -> Unit = {},
+    onItemFeedback: (String, Int) -> Unit = { _, _ -> }
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1211,37 +1371,102 @@ fun ChatBubble(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                if (message.isFromUser || message.isError) {
-                    Text(
-                        text = message.text,
-                        color = if (message.isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary,
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp
-                    )
-                } else {
-                    MarkdownText(
-                        markdown = message.text,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 15.sp
-                    )
+                Column {
+                    if (message.image != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = message.image.asImageBitmap(),
+                            contentDescription = "Uploaded Style",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 250.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .padding(bottom = 8.dp),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    }
+
+                    if (message.isFromUser || message.isError) {
+                        Text(
+                            text = message.text,
+                            color = if (message.isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary,
+                            fontSize = 15.sp,
+                            lineHeight = 22.sp
+                        )
+                    } else {
+                        MarkdownText(
+                            markdown = message.text,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 15.sp
+                        )
+                    }
                 }
             }
 
-            // Show Select Button if outfit IDs are available
-            if (!message.isFromUser && message.outfitIds != null && message.outfitIds.size >= 3) {
+            // Show Buttons if outfit IDs are available
+            if (!message.isFromUser && message.outfitIds != null && message.outfitIds.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { onOutfitSelect(message.outfitIds) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.padding(start = 4.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Filled.Checkroom, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Select this Outfit", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    // Nút mặc thử trên Canvas
+                    if (message.outfitIds.size >= 3) {
+                        Button(
+                            onClick = { onOutfitSelect(message.outfitIds) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.Checkroom, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Try on Canvas", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Nút lưu trực tiếp vào OOTD
+                    Button(
+                        onClick = { onLogOotd(message.outfitIds) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.Favorite, null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Log OOTD", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                
+                // Feedback buttons below the outfit buttons
+                if (message.outfitIds != null && message.outfitIds!!.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(message.outfitIds!!.size) { index ->
+                            val itemId = message.outfitIds!![index]
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
+                                Text("#${index + 1}", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                                IconButton(onClick = { onItemFeedback(itemId, 1) }, modifier = Modifier.size(24.dp)) {
+                                    Icon(androidx.compose.material.icons.Icons.Default.ThumbUp, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { onItemFeedback(itemId, -1) }, modifier = Modifier.size(24.dp)) {
+                                    Icon(androidx.compose.material.icons.Icons.Default.ThumbDown, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

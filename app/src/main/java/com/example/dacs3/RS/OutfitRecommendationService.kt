@@ -25,53 +25,149 @@ class OutfitRecommendationService {
     fun getRecommendations(
         userProfile: Profile,
         userWardrobe: List<ClothingItem>,
-        currentSeason: String
+        currentSeason: String,
+        frequencyMap: Map<String, Int> = emptyMap(),
+        feedbackMap: Map<String, Int> = emptyMap(),
+        socialTrendContext: String = ""
     ): List<Outfit> {
 
-        // Bước 1: Lọc đồ theo mùa và sở thích (Pre-filtering)
+        // Bước 1: Lọc đồ theo mùa (Pre-filtering)
         val availableItems = userWardrobe.filter { item ->
-            item.seasons?.contains(currentSeason) == true
+            item.seasons?.contains(currentSeason) == true || item.seasons.isNullOrEmpty()
         }
 
-        val tops = availableItems.filter { it.category.equals("Top", true) }
-        val bottoms = availableItems.filter { it.category.equals("Bottom", true) }
-        val shoes = availableItems.filter { it.category.equals("Shoes", true) }
+        // Bước 2: Tối ưu hiệu năng - Thu hẹp danh sách ứng viên (Candidate Pruning)
+        // Thay vì duyệt hàng nghìn món, ta chỉ lấy Top 20 món tốt nhất ở mỗi loại
+        val tops = rankIndividualItems(availableItems.filter { it.category.equals("Top", true) }, userProfile, frequencyMap, feedbackMap, socialTrendContext).take(20)
+        val bottoms = rankIndividualItems(availableItems.filter { it.category.equals("Bottom", true) }, userProfile, frequencyMap, feedbackMap, socialTrendContext).take(20)
+        val shoes = rankIndividualItems(availableItems.filter { it.category.equals("Shoes", true) }, userProfile, frequencyMap, feedbackMap, socialTrendContext).take(20)
 
-        val possibleOutfits = mutableListOf<Outfit>()
+        val rankedOutfits = mutableListOf<Pair<Outfit, Float>>()
 
-        // Bước 2: Duyệt và tính điểm (Scoring)
+        // Bước 3: Duyệt và tính điểm (Scoring) - Tối đa 20 * 20 * 20 = 8,000 lần (Rất nhanh)
         for (top in tops) {
             for (bottom in bottoms) {
                 for (shoe in shoes) {
-                    val score = calculateScore(userProfile, top, bottom, shoe)
+                    val score = calculateScore(userProfile, top, bottom, shoe, frequencyMap, feedbackMap, socialTrendContext)
 
-                    // Nếu điểm > ngưỡng nhất định (ví dụ 0.5) thì thêm vào danh sách
-                    if (score > 0.6) {
-                        possibleOutfits.add(Outfit(listOf(top, bottom, shoe)))
+                    if (score > 0.4) {
+                        rankedOutfits.add(Outfit(listOf(top, bottom, shoe)) to score)
                     }
                 }
             }
         }
 
-        // Bước 3: Sắp xếp theo điểm cao nhất
-        return possibleOutfits.sortedByDescending { /* Logic điểm ở đây */ 1 }
+        // Bước 4: Sắp xếp theo điểm cao nhất
+        return rankedOutfits
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .take(15)
     }
 
-    private fun calculateScore(profile: Profile, top: ClothingItem, bottom: ClothingItem, shoe: ClothingItem): Float {
+    /**
+     * Hàm phụ trợ để xếp hạng sơ bộ từng món đồ riêng lẻ.
+     * Giúp giảm tải cho vòng lặp phối đồ chính.
+     */
+    private fun rankIndividualItems(
+        items: List<ClothingItem>,
+        profile: Profile,
+        frequencyMap: Map<String, Int>,
+        feedbackMap: Map<String, Int>,
+        socialTrendContext: String
+    ): List<ClothingItem> {
+        return items.map { item ->
+            var itemScore = 0f
+            
+            // Điểm cơ bản: Màu sắc yêu thích và độ tương đồng
+            val idealVector = FeatureEncoder.getIdealProfileVector(profile, item.category)
+            val sim = SimilarityMath.cosineSimilarity(FeatureEncoder.getItemVector(item), idealVector)
+            if (!sim.isNaN()) itemScore += sim
+
+            // Điểm phản hồi: Ưu tiên Like, loại bỏ Dislike
+            when (feedbackMap[item.id]) {
+                1 -> itemScore += 0.5f
+                -1 -> itemScore -= 2.0f
+            }
+
+            // Điểm xu hướng
+            if (socialTrendContext.contains(item.mainColor ?: "", true)) itemScore += 0.2f
+            
+            item to itemScore
+        }.sortedByDescending { it.second }.map { it.first }
+    }
+
+    private fun calculateScore(
+        profile: Profile, 
+        top: ClothingItem, 
+        bottom: ClothingItem, 
+        shoe: ClothingItem,
+        frequencyMap: Map<String, Int>,
+        feedbackMap: Map<String, Int>,
+        socialTrendContext: String = "" // New
+    ): Float {
         var score = 0f
 
-        // Cộng điểm nếu màu sắc thuộc danh sách màu yêu thích của User
-        if (profile.favoriteColors.contains(top.mainColor)) score += 0.2f
+        // 1. Độ tương đồng với Sở thích (Màu sắc & Loại trang phục) (Dùng Cosine Similarity)
+        val idealTopVector = FeatureEncoder.getIdealProfileVector(profile, "Top")
+        val idealBottomVector = FeatureEncoder.getIdealProfileVector(profile, "Bottom")
+        
+        val topSim = SimilarityMath.cosineSimilarity(FeatureEncoder.getItemVector(top), idealTopVector)
+        val bottomSim = SimilarityMath.cosineSimilarity(FeatureEncoder.getItemVector(bottom), idealBottomVector)
+        
+        if (!topSim.isNaN()) score += topSim * 0.1f
+        if (!bottomSim.isNaN()) score += bottomSim * 0.1f
 
-        // Cộng điểm nếu màu sắc top và bottom phối hợp tốt (dựa trên colorRules)
-        if (colorRules[top.mainColor]?.contains(bottom.mainColor) == true) score += 0.4f
+        // 2. Phối màu hài hòa (0.4)
+        if (colorRules[top.mainColor]?.contains(bottom.mainColor) == true) score += 0.3f
+        if (colorRules[bottom.mainColor]?.contains(shoe.mainColor) == true) score += 0.1f
 
-        // Cộng điểm nếu item phù hợp với dịp (Occasions) - Giả sử user đang cần đi làm
-        if (top.occasions?.contains("Work") == true && bottom.occasions?.contains("Work") == true) score += 0.3f
-
-        // Logic dựa trên Body Shape (Ví dụ: Dáng người tam giác ngược hợp với loại áo nào đó)
-        if (profile.bodyShape == "Inverted Triangle" && top.category == "V-neck") score += 0.1f
+        // 3. Phù hợp dáng người (0.1)
+        if (profile.bodyShape == "Inverted Triangle" && top.category.contains("V-neck", true)) score += 0.1f
+        
+        // 4. Tần suất mặc đồ - Ưu tiên những món hay mặc (0.3)
+        val topFreq = frequencyMap[top.id] ?: 0
+        val bottomFreq = frequencyMap[bottom.id] ?: 0
+        if (topFreq > 0) score += 0.15f * (topFreq.toFloat() / 10f).coerceAtMost(1f)
+        if (bottomFreq > 0) score += 0.15f * (bottomFreq.toFloat() / 10f).coerceAtMost(1f)
+        
+        // 5. Phản hồi từ người dùng (Feedback Loop)
+        // Nếu có món đồ bị Dislike (-1), trừ điểm cực nặng để không gợi ý món đó nữa
+        if (feedbackMap[top.id] == -1) score -= 1.0f
+        if (feedbackMap[bottom.id] == -1) score -= 1.0f
+        if (feedbackMap[shoe.id] == -1) score -= 1.0f
+        
+        // Ngược lại, nếu được Like (1), cộng thêm điểm ưu tiên
+        if (feedbackMap[top.id] == 1) score += 0.2f
+        if (feedbackMap[bottom.id] == 1) score += 0.2f
+        if (feedbackMap[shoe.id] == 1) score += 0.2f
+        
+        // 6. Social Trend (Gợi ý cộng đồng) (0.15)
+        // Nếu bộ đồ này chứa các thành phần đang là "Trend", cộng thêm điểm
+        if (socialTrendContext.isNotBlank()) {
+            if (socialTrendContext.contains(top.mainColor ?: "", ignoreCase = true)) score += 0.05f
+            if (socialTrendContext.contains(bottom.mainColor ?: "", ignoreCase = true)) score += 0.05f
+            if (socialTrendContext.contains(top.category, ignoreCase = true)) score += 0.05f
+        }
 
         return score
     }
-}
+
+    // Tính điểm tương đồng (Dùng cho Style Matching) bằng Cosine Similarity
+    fun getSimilarityScore(item: ClothingItem, targetCategory: String, targetColor: String): Float {
+        // Tạo một vector mục tiêu (One-Hot)
+        val targetItem = ClothingItem(
+            id = "target",
+            userId = "target",
+            clothes_name = "target",
+            imageUrl = "",
+            category = targetCategory,
+            mainColor = targetColor
+        )
+        
+        val itemVector = FeatureEncoder.getItemVector(item)
+        val targetVector = FeatureEncoder.getItemVector(targetItem)
+        
+        val sim = SimilarityMath.cosineSimilarity(itemVector, targetVector)
+        return if (sim.isNaN()) 0f else sim
+    }
+}

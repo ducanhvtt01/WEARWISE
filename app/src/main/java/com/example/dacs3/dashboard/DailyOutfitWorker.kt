@@ -17,7 +17,11 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.dacs3.MainActivity
 import com.example.dacs3.R
+import com.example.dacs3.connectDB.*
+import com.example.dacs3.RS.OutfitRecommendationService
 import com.google.ai.client.generativeai.GenerativeModel
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -64,10 +68,49 @@ class DailyOutfitWorker(
                 "No specific events today, just a regular day."
             }
 
+            // 2.5 LẤY TỦ ĐỒ VÀ GỢI Ý TỪ LOCAL RS (Hybrid Approach)
+            val userId = supabase.auth.currentUserOrNull()?.id
+            var localOutfitContext = ""
+            if (userId != null) {
+                try {
+                    val profile = supabase.from("profiles").select { filter { eq("id", userId) } }.decodeSingle<Profile>()
+                    val wardrobe = supabase.from("clothes").select { filter { eq("user_id", userId); neq("status", "unactive") } }.decodeList<ClothingItem>()
+                    val history = supabase.from("usage_history").select { filter { eq("user_id", userId) } }.decodeList<UsageHistoryDbModel>()
+                    
+                    val outfitIds = history.map { it.outfitId }
+                    val frequencyMap = if (outfitIds.isNotEmpty()) {
+                        val outfitItems = supabase.from("outfit_items").select { filter { isIn("outfit_id", outfitIds) } }.decodeList<OutfitItemDbModel>()
+                        outfitItems.groupingBy { it.clothingId }.eachCount()
+                    } else emptyMap()
+
+                    // FETCH FEEDBACK (New)
+                    val feedbackList = try {
+                        supabase.from("clothing_feedback")
+                            .select { filter { eq("user_id", userId) } }
+                            .decodeList<ClothingFeedback>()
+                    } catch (e: Exception) { emptyList<ClothingFeedback>() }
+                    val feedbackMap = feedbackList.associate { it.clothingId to it.rating }
+
+                    val month = Calendar.getInstance().get(Calendar.MONTH) + 1
+                    val season = when(month) {
+                        in 3..5 -> "Spring"; in 6..8 -> "Summer"; in 9..11 -> "Autumn"; else -> "Winter"
+                    }
+
+                    val rs = OutfitRecommendationService()
+                    val bestOutfits = rs.getRecommendations(profile, wardrobe, season, frequencyMap, feedbackMap)
+                    if (bestOutfits.isNotEmpty()) {
+                        val top = bestOutfits.first()
+                        localOutfitContext = "Highly recommended items from user's actual closet: " + 
+                            top.items.joinToString { "${it.clothes_name} (${it.category})" }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
             // 3. GỌI GEMINI API ĐỂ XỬ LÝ
-            // LƯU Ý: Thay "YOUR_GEMINI_API_KEY" bằng key thật của bạn lấy từ Google AI Studio
             val generativeModel = GenerativeModel(
-                modelName = "gemini-2.5-flash",
+                modelName = "gemini-3.1-flash-lite",
                 apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
             )
 
@@ -78,8 +121,9 @@ class DailyOutfitWorker(
                 Context:
                 - Weather: $weatherCondition, Temperature: $temp.
                 - Schedule: $scheduleContext
+                - Actual Wardrobe Suggestions (Local RS): $localOutfitContext
                 
-                Task: Suggest ONE perfect outfit from a typical men's college wardrobe. 
+                Task: Suggest ONE perfect outfit. If local suggestions are provided, PRIORITIZE them as they exist in the user's closet.
                 Format exactly like this (no markdown, just 2 lines):
                 Line 1 (Title, max 40 chars, include an emoji): <Catchy Title>
                 Line 2 (Body, max 100 chars): <Brief outfit suggestion based on weather and schedule>

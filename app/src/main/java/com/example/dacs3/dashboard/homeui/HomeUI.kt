@@ -3,9 +3,14 @@ package com.example.dacs3.dashboard.homeui
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -70,6 +76,7 @@ fun HomeUI(
 
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
+    val hapticFeedback = LocalHapticFeedback.current
     var isAiScanning by remember { mutableStateOf(false) }
     var aiScanResultText by remember { mutableStateOf<String?>(null) }
     var rawScannedJson by remember { mutableStateOf<JSONObject?>(null) }
@@ -88,6 +95,8 @@ fun HomeUI(
     }
 
     val userProfile = viewModel.userProfile
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
@@ -97,7 +106,7 @@ fun HomeUI(
             scope.launch(Dispatchers.IO) {
                 try {
                     val generativeModel = GenerativeModel(
-                        modelName = "gemini-2.5-flash",
+                        modelName = "gemini-3.1-flash-lite",
                         apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
                         generationConfig = generationConfig {
                             temperature = 0.2f
@@ -161,57 +170,156 @@ fun HomeUI(
         }
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                cameraLauncher.launch(null)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.widget.Toast.makeText(
+                    context,
+                    "Cannot open camera: ${e.localizedMessage}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        } else {
+            android.widget.Toast.makeText(
+                context,
+                "Camera permission is required for AI Scan",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp,
-                    modifier = Modifier
-                        .height(84.dp)
-                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                ) {
-                    val items = listOf("Home", "Closet", "Stylist", "Profile")
-                    val icons = listOf(
-                        Icons.Outlined.Home,
-                        Icons.Outlined.Checkroom,
-                        Icons.Outlined.AutoAwesome,
-                        Icons.Outlined.Person
-                    )
-                    val selectedIcons = listOf(
-                        Icons.Filled.Home,
-                        Icons.Filled.Checkroom,
-                        Icons.Filled.AutoAwesome,
-                        Icons.Filled.Person
-                    )
+                val items = listOf("Home", "Closet", "Stylist", "Profile")
+                val icons = listOf(
+                    Icons.Outlined.Home,
+                    Icons.Outlined.Checkroom,
+                    Icons.Outlined.AutoAwesome,
+                    Icons.Outlined.Person
+                )
+                val selectedIcons = listOf(
+                    Icons.Filled.Home,
+                    Icons.Filled.Checkroom,
+                    Icons.Filled.AutoAwesome,
+                    Icons.Filled.Person
+                )
 
-                    items.forEachIndexed { index, item ->
-                        NavigationBarItem(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            icon = {
-                                Icon(
-                                    if (selectedTab == index) selectedIcons[index] else icons[index],
-                                    contentDescription = item,
-                                    modifier = Modifier.size(if (selectedTab == index) 28.dp else 24.dp)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    item,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer
+                // ─── FLOATING GLASSY NAVIGATION BAR ───
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(68.dp)
+                            .shadow(
+                                elevation = 24.dp,
+                                shape = RoundedCornerShape(34.dp),
+                                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                             )
-                        )
+                            .clip(RoundedCornerShape(34.dp))
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                        Color.Transparent
+                                    )
+                                ),
+                                shape = RoundedCornerShape(34.dp)
+                            )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            items.forEachIndexed { index, label ->
+                                val isSelected = selectedTab == index
+                                val animatedScale by animateFloatAsState(
+                                    targetValue = if (isSelected) 1.1f else 1.0f,
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                                    label = "navScale$index"
+                                )
+
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable(
+                                            indication = null,
+                                            interactionSource = remember { MutableInteractionSource() }
+                                        ) {
+                                            selectedTab = index
+                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    // Glowing pill indicator for selected item
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(width = 48.dp, height = 32.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(
+                                                if (isSelected)
+                                                    Brush.horizontalGradient(
+                                                        listOf(
+                                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                                                        )
+                                                    )
+                                                else
+                                                    Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
+                                            )
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isSelected) selectedIcons[index] else icons[index],
+                                            contentDescription = label,
+                                            modifier = Modifier
+                                                .size(if (isSelected) 24.dp else 22.dp)
+                                                .graphicsLayer(scaleX = animatedScale, scaleY = animatedScale),
+                                            tint = if (isSelected)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        text = label,
+                                        fontSize = 10.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -242,6 +350,7 @@ fun HomeUI(
                             }
                         )
                     }
+
                     1 -> ClosetScreen(viewModel = viewModel) // [SỬA ĐỔI] TRUYỀN VIEWMODEL VÀO CLOSET SCREEN
                     2 -> StylistScreen()
                     3 -> ProfileScreen(
@@ -355,7 +464,7 @@ fun HomeUI(
                                         scope.launch(Dispatchers.IO) {
                                             try {
                                                 val generativeModel = GenerativeModel(
-                                                    modelName = "gemini-2.5-flash",
+                                                    modelName = "gemini-3.1-flash-lite",
                                                     apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
                                                 )
 
@@ -505,7 +614,9 @@ fun HomeUI(
                         ), shape = CircleShape
                     )
                     .clip(CircleShape)
-                    .clickable { cameraLauncher.launch(null) }
+                    .clickable {
+                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                    }
                     .pointerInput(Unit) {
                         detectDragGestures { change, dragAmount ->
                             change.consume()

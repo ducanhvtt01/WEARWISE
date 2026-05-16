@@ -144,8 +144,26 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
         Spacer(modifier = Modifier.height(40.dp))
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
+        var showForgotPassword by remember { mutableStateOf(false) }
+
+        if (showForgotPassword) {
+            ForgotPasswordDialog(onDismiss = { showForgotPassword = false })
+        }
+
+        // --- NÚT QUÊN MẬT KHẨU ---
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            Text(
+                text = "Forgot Password?",
+                fontSize = 13.sp,
+                color = MidnightBlue.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .padding(bottom = 16.dp)
+                    .clickable { showForgotPassword = true }
+            )
+        }
 
         // --- NÚT ĐĂNG NHẬP CHÍNH ---
+
         Button(
             onClick = {
                 if (email.isNotBlank() && password.isNotBlank()) {
@@ -167,7 +185,7 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
                                 Toast.makeText(context, "Email or password is wrong!", Toast.LENGTH_SHORT).show()
                             }
                             LoginResult.ERROR -> {
-                                Toast.makeText(context, "Đã xảy ra lỗi kết nối. Thử lại sau!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Connection error occurred. Please try again later!", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -224,14 +242,14 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
                         if (!started) {
                             Toast.makeText(
                                 context,
-                                "Không thể mở đăng nhập Google",
+                                "Cannot open Google login",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
                     } catch (e: Exception) {
                         Toast.makeText(
                             context,
-                            "Lỗi đăng nhập Google: ${e.message}",
+                            "Google login error: ${e.message}",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -251,14 +269,14 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
                         if (!started) {
                             Toast.makeText(
                                 context,
-                                "Không thể mở đăng nhập Facebook",
+                                "Cannot open Facebook login",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
                     } catch (e: Exception) {
                         Toast.makeText(
                             context,
-                            "Lỗi đăng nhập Facebook: ${e.message}",
+                            "Facebook login error: ${e.message}",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -279,14 +297,14 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
                         if (!started) {
                             Toast.makeText(
                                 context,
-                                "Không thể mở đăng nhập GitHub",
+                                "Cannot open GitHub login",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
                     } catch (e: Exception) {
                         Toast.makeText(
                             context,
-                            "Lỗi đăng nhập GitHub: ${e.message}",
+                            "GitHub login error: ${e.message}",
                             Toast.LENGTH_SHORT
                         ).show()
                     }

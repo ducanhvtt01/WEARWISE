@@ -38,7 +38,7 @@ public suspend fun logincheck(emailUser: String, passUser: String): LoginResult 
                 LoginResult.INVALID_CREDENTIALS
             }
         } catch (e: Exception) {
-            println("Lỗi: ${e.message}")
+            println("Error: ${e.message}")
             if (e.message?.contains("Invalid login credentials", ignoreCase = true) == true) {
                 LoginResult.INVALID_CREDENTIALS
             } else {
@@ -47,3 +47,48 @@ public suspend fun logincheck(emailUser: String, passUser: String): LoginResult 
         }
     }
 }
+
+// --- NEW PASSWORD RESET FUNCTIONS ---
+
+suspend fun sendResetPasswordEmail(email: String): Boolean {
+    return withContext(Dispatchers.IO) {
+        try {
+            supabase.auth.resetPasswordForEmail(email)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+}
+
+suspend fun verifyResetOtp(email: String, otp: String): Boolean {
+    return withContext(Dispatchers.IO) {
+        try {
+            // Dùng OtpType.Email.RECOVERY cho reset password
+            supabase.auth.verifyEmailOtp(
+                type = io.github.jan.supabase.gotrue.OtpType.Email.RECOVERY,
+                email = email,
+                token = otp
+            )
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+}
+
+suspend fun updateUserPassword(newPassword: String): Boolean {
+    return withContext(Dispatchers.IO) {
+        try {
+            supabase.auth.updateUser {
+                password = newPassword
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+}

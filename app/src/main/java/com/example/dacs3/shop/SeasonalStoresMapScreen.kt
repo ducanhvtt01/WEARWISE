@@ -76,7 +76,7 @@ fun SeasonalStoresMapScreen(
 
         if (!locationPermissionGranted) {
             isLoadingLocation = false
-            locationError = "Bạn chưa cấp quyền vị trí. App đang hiển thị shop theo khu vực Đà Nẵng."
+            locationError = "Location permission denied. Showing stores near Da Nang."
         }
     }
 
@@ -109,10 +109,10 @@ fun SeasonalStoresMapScreen(
                     userLocation = LatLng(location.latitude, location.longitude)
                     locationError = null
                 } else {
-                    locationError = "Không lấy được vị trí hiện tại. App đang hiển thị shop theo khu vực Đà Nẵng."
+                    locationError = "Could not get current location. Showing stores near Da Nang."
                 }
             } catch (e: Exception) {
-                locationError = "Không lấy được vị trí hiện tại. App đang hiển thị shop theo khu vực Đà Nẵng."
+                locationError = "Could not get current location. Showing stores near Da Nang."
             } finally {
                 isLoadingLocation = false
             }
@@ -210,8 +210,8 @@ fun SeasonalStoresMapScreen(
                 userLocation?.let { location ->
                     Marker(
                         state = MarkerState(position = location),
-                        title = "Vị trí của bạn",
-                        snippet = "Đang tìm shop trong bán kính ${(radiusInMeters / 1000).toInt()} km"
+                        title = "Your Location",
+                        snippet = "Finding stores within ${(radiusInMeters / 1000).toInt()} km"
                     )
                 }
 
@@ -232,7 +232,7 @@ fun SeasonalStoresMapScreen(
 
             if (isLoadingLocation) {
                 LocationStatusCard(
-                    text = "Đang lấy vị trí hiện tại...",
+                    text = "Getting your current location...",
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(16.dp)
@@ -250,7 +250,7 @@ fun SeasonalStoresMapScreen(
 
             if (!isLoadingLocation && stores.isEmpty()) {
                 LocationStatusCard(
-                    text = "Không tìm thấy shop nào trong bán kính ${(radiusInMeters / 1000).toInt()} km.",
+                    text = "No stores found within ${(radiusInMeters / 1000).toInt()} km.",
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(16.dp)
@@ -451,7 +451,7 @@ private fun SeasonalStoreList(
                     )
                 ) {
                     Text(
-                        text = "Không có shop phù hợp để hiển thị.",
+                        text = "No matching stores to display.",
                         modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

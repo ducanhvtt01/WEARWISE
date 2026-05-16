@@ -1,9 +1,14 @@
 package com.example.dacs3.dashboard
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -17,7 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Checkroom
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,9 +34,12 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -85,6 +93,7 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
 
     // Lắng nghe dữ liệu thật từ ViewModel
     val itemsList by viewModel.clothingItems.collectAsState()
+    val feedbackMap by viewModel.clothingFeedbackMap.collectAsState() // New
 
     val filteredItems = itemsList.filter {
         (selectedCategory == "All" || it.category.equals(selectedCategory, ignoreCase = true)) &&
@@ -92,6 +101,24 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                     searchQuery,
                     ignoreCase = true
                 ) == true)
+    }
+
+    // --- HELPER FUNCTION TÍNH TOÁN "DEAD ITEM" (CHƯA MẶC > 90 NGÀY) ---
+    val isItemDead: (ClothingItem) -> Boolean = { item ->
+        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val todayDate = java.util.Date()
+        // Dùng last_worn_date, nếu null thì dùng created_at. Nếu vẫn null thì coi như món đồ mới
+        val referenceDateString = item.lastWornDate ?: item.createdAt
+        if (referenceDateString != null) {
+            try {
+                val refDate = formatter.parse(referenceDateString.substring(0, 10))
+                if (refDate != null) {
+                    val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                    val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(diffInMillies, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    diffInDays > 90
+                } else false
+            } catch (e: Exception) { false }
+        } else false
     }
 
     // --- BOTTOM SHEET HIỂN THỊ CHI TIẾT ĐỂ SỬA ---
@@ -268,31 +295,73 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                 }
             }
 
-            // --- FILTER CATEGORIES ---
+            // ─── OPTION B: PREMIUM ICON-BASED CATEGORY FILTER ───
+            val categoryIcons: Map<String, ImageVector> = mapOf(
+                "All" to Icons.Filled.GridView,
+                "Top" to Icons.Filled.Checkroom,
+                "Bottom" to Icons.Filled.Style,
+                "Outerwear" to Icons.Filled.AcUnit,
+                "Shoes" to Icons.Outlined.DirectionsWalk,
+                "Accessories" to Icons.Outlined.Watch
+            )
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(end = 8.dp),
                 modifier = Modifier.padding(bottom = 20.dp)
             ) {
                 items(categories.size) { index ->
                     val category = categories[index]
                     val isSelected = selectedCategory == category
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { selectedCategory = category },
-                        label = {
+                    val animatedBgAlpha by animateFloatAsState(
+                        targetValue = if (isSelected) 1f else 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                        label = "chipBg$index"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                if (isSelected)
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
+                                        )
+                                    )
+                                else
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            MaterialTheme.colorScheme.surface,
+                                            MaterialTheme.colorScheme.surface
+                                        )
+                                    )
+                            )
+                            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
+                                selectedCategory = category
+                            }
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            categoryIcons[category]?.let { icon ->
+                                Icon(
+                                    icon, null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
                             Text(
                                 category,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    )
+                        }
+                    }
                 }
             }
 
@@ -380,10 +449,17 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                             }
                         },
                         content = {
-                            ClosetItemCard(item = item, onClick = {
-                                selectedItemToEdit = item
-                                showItemSheet = true
-                            })
+                            val isDead = isItemDead(item)
+                            val rating = feedbackMap[item.id]
+                            ClosetItemCard(
+                                item = item, 
+                                isDead = isDead,
+                                rating = rating,
+                                onClick = {
+                                    selectedItemToEdit = item
+                                    showItemSheet = true
+                                }
+                            )
                         }
                     )
                 }
@@ -399,55 +475,137 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
 }
 
 @Composable
-fun ClosetItemCard(item: ClothingItem, onClick: () -> Unit) {
-    Card(
+fun ClosetItemCard(
+    item: ClothingItem,
+    isDead: Boolean = false,
+    rating: Int? = null,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "cardScale"
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
+            .height(220.dp)
+            .graphicsLayer(scaleX = scale, scaleY = scale)
             .shadow(
-                4.dp,
-                RoundedCornerShape(20.dp),
-                spotColor = MaterialTheme.colorScheme.surfaceVariant
+                elevation = if (isDead) 10.dp else 6.dp,
+                shape = RoundedCornerShape(20.dp),
+                spotColor = if (isDead) MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
             )
             .clip(RoundedCornerShape(20.dp))
-            .clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            .clickable(interactionSource = interactionSource, indication = null) { onClick() }
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        // ─── Full-bleed background: image or placeholder ───
+        if (item.imageUrl.isNotEmpty()) {
+            AsyncImage(
+                model = item.imageUrl,
+                contentDescription = item.clothes_name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                MaterialTheme.colorScheme.surface
+                            )
+                        )
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                // KIỂM TRA: Nếu có link ảnh thì dùng AsyncImage của Coil để hiển thị
-                if (item.imageUrl.isNotEmpty()) {
-                    AsyncImage(
-                        model = item.imageUrl,
-                        contentDescription = item.clothes_name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop // Cắt ảnh cho vừa vặn với khung bo góc
+                Icon(
+                    Icons.Outlined.Checkroom, null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+            }
+        }
+
+        // ─── Bottom gradient overlay for text readability ───
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f))
                     )
-                } else {
-                    // Nếu chưa có ảnh (hoặc lỗi mạng) thì vẫn hiện cái móc áo dự phòng
-                    Icon(
-                        Icons.Outlined.Checkroom,
-                        null,
-                        modifier = Modifier.size(40.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                )
+        )
+
+        // ─── Item name at the bottom ───
+        Text(
+            text = item.clothes_name,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        )
+
+        // ─── Top-right badges: Rarely Worn + Feedback ───
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (isDead) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFFFF6B35), Color(0xFFFF3D00))
+                            )
+                        )
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                ) {
+                    Text("Rarely Worn", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                item.clothes_name,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2
+            if (rating == 1) {
+                Box(
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                        .padding(5.dp)
+                ) {
+                    Icon(Icons.Filled.ThumbUp, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                }
+            } else if (rating == -1) {
+                Box(
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                        .padding(5.dp)
+                ) {
+                    Icon(Icons.Filled.ThumbDown, null, tint = Color(0xFFE53935), modifier = Modifier.size(12.dp))
+                }
+            }
+        }
+
+        // ─── Dead item border glow effect ───
+        if (isDead) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Transparent)
             )
         }
     }

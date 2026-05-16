@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import java.io.ByteArrayOutputStream
 
@@ -26,20 +27,39 @@ class DashboardViewModel : ViewModel() {
     private val _clothingItems = MutableStateFlow<List<ClothingItem>>(emptyList())
     val clothingItems: StateFlow<List<ClothingItem>> = _clothingItems.asStateFlow()
 
+    // Smart Wardrobe: Danh sách đồ được sắp xếp theo độ ưu tiên
+    private val _smartWardrobeItems = MutableStateFlow<List<ClothingItem>>(emptyList())
+    val smartWardrobeItems: StateFlow<List<ClothingItem>> = _smartWardrobeItems.asStateFlow()
+
+    // Danh sách phản hồi (Feedback) cho từng món đồ (Mã đồ -> Đánh giá 1 hoặc -1)
+    private val _clothingFeedbackMap = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val clothingFeedbackMap: StateFlow<Map<String, Int>> = _clothingFeedbackMap.asStateFlow()
+
     // State cho Outfit Canvas
     val aiCanvasOutfit = MutableStateFlow<Outfit?>(null)
     var isCanvasLoading by mutableStateOf(false)
+    var canvasError by mutableStateOf<String?>(null)
+
+    // Global Error Message for UI feedback
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    fun clearError() { _errorMessage.value = null }
 
     // Hàm lấy profile từ Supabase
     fun getProfile(userId: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 val profile = supabase.from("profiles")
                     .select { filter { eq("id", userId) } }
-                    .decodeSingle<Profile>()
-                userProfile = profile
+                    .decodeSingleOrNull<Profile>()
+                
+                withContext(Dispatchers.Main) {
+                    userProfile = profile
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+                _errorMessage.value = "Failed to load profile: ${e.localizedMessage}"
             }
         }
     }
@@ -58,8 +78,17 @@ class DashboardViewModel : ViewModel() {
                         }
                         .decodeList<ClothingItem>()
                 _clothingItems.value = clothes
+
+                // Lấy thêm Feedback cho các món đồ này
+                val feedbacks = supabase.from("clothing_feedback")
+                    .select { filter { eq("user_id", userId) } }
+                    .decodeList<ClothingFeedback>()
+                
+                val feedbackMap = feedbacks.associate { it.clothingId to it.rating }
+                _clothingFeedbackMap.value = feedbackMap
             } catch (e: Exception) {
                 e.printStackTrace()
+                _errorMessage.value = "Failed to load wardrobe: ${e.localizedMessage}"
             }
         }
     }
@@ -113,6 +142,7 @@ class DashboardViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                _errorMessage.value = "Failed to upload clothing: ${e.localizedMessage}"
             }
         }
     }
@@ -184,8 +214,8 @@ class DashboardViewModel : ViewModel() {
         bottomSize: String,
         shoeSizeEu: Int
     ) {
-        viewModelScope.launch {
-            isUpdating = true
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { isUpdating = true }
             try {
                 val updateMap = mapOf(
                     "height_cm" to height,
@@ -202,26 +232,29 @@ class DashboardViewModel : ViewModel() {
                     filter { eq("id", userId) }
                 }
 
-                userProfile = userProfile?.copy(
-                    heightCm = height.toFloat(),
-                    weightKg = weight.toFloat(),
-                    bodyShape = shape,
-                    skinTone = skinTone,
-                    topSize = topSize,
-                    bottomSize = bottomSize,
-                    shoeSizeEu = shoeSizeEu
-                )
+                withContext(Dispatchers.Main) {
+                    userProfile = userProfile?.copy(
+                        heightCm = height.toFloat(),
+                        weightKg = weight.toFloat(),
+                        bodyShape = shape,
+                        skinTone = skinTone,
+                        topSize = topSize,
+                        bottomSize = bottomSize,
+                        shoeSizeEu = shoeSizeEu
+                    )
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+                _errorMessage.value = "Failed to update measurements: ${e.localizedMessage}"
             } finally {
-                isUpdating = false
+                withContext(Dispatchers.Main) { isUpdating = false }
             }
         }
     }
 
     fun updateStylePreferences(userId: String, styles: List<String>, colors: List<String>) {
-        viewModelScope.launch {
-            isUpdating = true
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { isUpdating = true }
             try {
                 val updateMap = mapOf(
                     "favorite_styles" to styles,
@@ -233,21 +266,24 @@ class DashboardViewModel : ViewModel() {
                     filter { eq("id", userId) }
                 }
 
-                userProfile = userProfile?.copy(
-                    favoriteStyles = styles,
-                    favoriteColors = colors
-                )
+                withContext(Dispatchers.Main) {
+                    userProfile = userProfile?.copy(
+                        favoriteStyles = styles,
+                        favoriteColors = colors
+                    )
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+                _errorMessage.value = "Failed to update styles: ${e.localizedMessage}"
             } finally {
-                isUpdating = false
+                withContext(Dispatchers.Main) { isUpdating = false }
             }
         }
     }
 
     fun updateProfile(userId: String, fullName: String) {
-        viewModelScope.launch {
-            isUpdating = true
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) { isUpdating = true }
             try {
                 val updateMap = mapOf(
                     "full_name" to fullName,
@@ -258,11 +294,14 @@ class DashboardViewModel : ViewModel() {
                     filter { eq("id", userId) }
                 }
 
-                userProfile = userProfile?.copy(fullName = fullName)
+                withContext(Dispatchers.Main) {
+                    userProfile = userProfile?.copy(fullName = fullName)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
+                _errorMessage.value = "Failed to update profile: ${e.localizedMessage}"
             } finally {
-                isUpdating = false
+                withContext(Dispatchers.Main) { isUpdating = false }
             }
         }
     }
@@ -438,15 +477,17 @@ class DashboardViewModel : ViewModel() {
     fun generateCanvasOutfit(weatherTemp: String) {
         viewModelScope.launch(Dispatchers.IO) {
             isCanvasLoading = true
+            canvasError = null
             try {
                 val currentItems = _clothingItems.value
                 if (currentItems.size < 3) {
+                    canvasError = "You need at least 3 items in your closet."
                     isCanvasLoading = false
                     return@launch
                 }
 
                 val generativeModel = com.google.ai.client.generativeai.GenerativeModel(
-                    modelName = "gemini-2.5-flash",
+                    modelName = "gemini-3.1-flash-lite",
                     apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
                 )
 
@@ -454,36 +495,103 @@ class DashboardViewModel : ViewModel() {
                     "- ID: ${it.id} | Name: ${it.clothes_name} | Category: ${it.category} | Color: ${it.mainColor}" 
                 }
 
+                // FETCH SOCIAL TRENDS (New)
+                val socialTrends = userProfile?.favoriteStyles?.let { getSocialStyleTrends(it) } ?: ""
+                
                 val prompt = """
                     You are an expert fashion stylist. The current weather is $weatherTemp.
+                    
+                    COMMUNITY TRENDS:
+                    $socialTrends
+                    
                     Here is the user's closet inventory:
                     $inventoryData
                     
-                    Task: Select EXACTLY 3 items to create a perfect, stylish outfit for today.
-                    You MUST select EXACTLY 1 Top, 1 Bottom, and 1 Shoes.
-                    The IDs you return MUST exactly match the IDs provided above.
+                    Task: Select 2 to 3 items to create a perfect, stylish outfit for today.
+                    CRITICAL RULES:
+                    1. You MUST select exactly 1 Top (or Shirt/Áo) and exactly 1 Bottom (or Pants/Quần).
+                    2. DO NOT select two Bottoms or two Tops.
+                    3. If the user has Shoes or Outerwear available, you may select 1 to complete the outfit (total 3 items).
+                    4. The IDs you return MUST exactly match the IDs provided above.
                     
-                    Return ONLY the 3 IDs separated by commas, in this exact order: TOP_ID, BOTTOM_ID, SHOES_ID.
-                    Do NOT return any other text, no markdown, no explanations.
+                    Return ONLY the IDs separated by commas. Do NOT return any other text, markdown, or explanations.
                 """.trimIndent()
 
                 val response = generativeModel.generateContent(prompt)
                 val responseText = response.text?.trim() ?: ""
 
-                val ids = responseText.split(",").map { it.trim() }
-                if (ids.size == 3) {
-                    val top = currentItems.find { it.id == ids[0] }
-                    val bottom = currentItems.find { it.id == ids[1] }
-                    val shoes = currentItems.find { it.id == ids[2] }
+                // Robust ID matching: Check which actual closet IDs are present in the AI's response text.
+                // This is 100% foolproof against AI hallucinations and formatting errors.
+                val matchedItems = currentItems.filter { it.id != null && responseText.contains(it.id, ignoreCase = true) }
+                
+                if (matchedItems.size >= 2) {
+                    val top = matchedItems.find { it.category.lowercase().run { contains("top") || contains("áo") || contains("shirt") } }
+                    val bottom = matchedItems.find { it.category.lowercase().run { contains("bottom") || contains("quần") || contains("pants") } }
+                    val shoes = matchedItems.find { it.category.lowercase().run { contains("shoes") || contains("giày") } }
 
-                    if (top != null && bottom != null && shoes != null) {
-                        aiCanvasOutfit.value = Outfit(listOf(top, bottom, shoes))
+                    val finalOutfit = mutableListOf<com.example.dacs3.connectDB.ClothingItem>()
+                    if (top != null) finalOutfit.add(top)
+                    if (bottom != null) finalOutfit.add(bottom)
+                    if (shoes != null) finalOutfit.add(shoes)
+                    
+                    // Fill with remaining matched items if less than 3, but NO duplicate bottoms/tops
+                    for (item in matchedItems) {
+                        if (finalOutfit.size >= 3) break
+                        if (!finalOutfit.contains(item)) {
+                            val cat = item.category.lowercase()
+                            val isBottom = cat.contains("bottom") || cat.contains("quần") || cat.contains("pants")
+                            val isTop = cat.contains("top") || cat.contains("áo") || cat.contains("shirt")
+                            
+                            // Prevent adding a second top or bottom
+                            if ((isBottom && bottom != null) || (isTop && top != null)) continue
+                            
+                            finalOutfit.add(item)
+                        }
                     }
+
+                    if (finalOutfit.size >= 2) {
+                        aiCanvasOutfit.value = Outfit(finalOutfit)
+                    } else {
+                        canvasError = "AI couldn't formulate a proper Top + Bottom combination."
+                    }
+                } else {
+                    canvasError = "AI couldn't find a complete outfit from your closet."
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                canvasError = "Connection error: ${e.localizedMessage}"
             } finally {
                 isCanvasLoading = false
+            }
+        }
+    }
+
+    /**
+     * Saves user feedback (Like/Dislike) for a specific clothing item.
+     * rating: 1 for Like, -1 for Dislike
+     */
+    fun saveClothingFeedback(clothingId: String, rating: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val userId = supabase.auth.currentUserOrNull()?.id ?: return@launch
+                
+                // Use upsert to handle multiple feedback updates for the same item
+                val feedback = ClothingFeedback(
+                    userId = userId,
+                    clothingId = clothingId,
+                    rating = rating
+                )
+                
+                supabase.from("clothing_feedback").upsert(feedback)
+                
+                // Update local state map immediately for responsive UI
+                val currentMap = _clothingFeedbackMap.value.toMutableMap()
+                currentMap[clothingId] = rating
+                _clothingFeedbackMap.value = currentMap
+                
+                println("Feedback saved: Item $clothingId rated $rating")
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -552,6 +660,19 @@ class DashboardViewModel : ViewModel() {
                 )
                 supabase.from("usage_history").insert(usage)
                 
+                // 5. CẬP NHẬT last_worn_date cho quần áo
+                val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val updateMap = mapOf("last_worn_date" to today)
+                supabase.from("clothes").update(updateMap) {
+                    filter { isIn("id", clothingIds) }
+                }
+
+                // Cập nhật lại UI Local
+                val updatedItems = _clothingItems.value.map {
+                    if (it.id in clothingIds) it.copy(lastWornDate = today) else it
+                }
+                _clothingItems.value = updatedItems
+                
                 launch(Dispatchers.Main) { 
                     onSuccess()
                     fetchTopFavoriteClothes(userId) // Làm mới danh sách Top Favourites
@@ -600,8 +721,69 @@ class DashboardViewModel : ViewModel() {
                 }.sortedByDescending { it.second }
                 
                 _topFavoriteClothes.value = resultList
+
+                // Cập nhật Smart Wardrobe: Ưu tiên đồ hay mặc, sau đó đến đồ mới
+                val allItems = _clothingItems.value
+                val smartSorted = allItems.sortedByDescending { frequencyMap[it.id] ?: 0 }
+                _smartWardrobeItems.value = smartSorted
             } catch(e: Exception) {
                 e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * SOCIAL RS: Finds "Style Twins" (users with similar styles) and identifies what they are wearing/liking.
+     */
+    suspend fun getSocialStyleTrends(favoriteStyles: List<String>): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val currentUserId = supabase.auth.currentUserOrNull()?.id ?: return@withContext ""
+                
+                // 1. Tìm những người dùng có cùng phong cách (Style Twins) bằng Jaccard Similarity
+                val allProfiles = supabase.from("profiles").select {
+                    filter {
+                        neq("id", currentUserId)
+                    }
+                }.decodeList<Profile>()
+                
+                val myStylesSet = favoriteStyles.toSet()
+                
+                val styleTwins = allProfiles
+                    .map { profile -> 
+                        val sim = com.example.dacs3.RS.SimilarityMath.jaccardSimilarity(myStylesSet, profile.favoriteStyles.toSet())
+                        profile to sim
+                    }
+                    .filter { it.second > 0.0f } // Chỉ lấy những người có ít nhất 1 điểm chung
+                    .sortedByDescending { it.second } // Xếp hạng theo độ tương đồng cao nhất
+                    .take(5) // Lấy Top 5 Style Twins
+                    .map { it.first }
+                
+                if (styleTwins.isEmpty()) return@withContext "No community trends found for your styles yet."
+                
+                val twinIds = styleTwins.map { it.id }
+                
+                // 2. Tìm những món đồ họ thích hoặc dùng nhiều
+                val trendingItems = supabase.from("clothes").select {
+                    filter {
+                        isIn("user_id", twinIds)
+                        neq("status", "unactive")
+                    }
+                }.decodeList<ClothingItem>()
+                
+                if (trendingItems.isEmpty()) return@withContext "Style twins exist, but no wardrobe data found."
+
+                // 3. Phân tích xem họ đang chuộng màu gì và loại đồ gì nhất
+                val topColors = trendingItems.groupingBy { it.mainColor ?: "Neutral" }.eachCount()
+                    .entries.sortedByDescending { it.value }.take(2).joinToString { it.key }
+                
+                val topCategories = trendingItems.groupingBy { it.category }.eachCount()
+                    .entries.sortedByDescending { it.value }.take(2).joinToString { it.key }
+                
+                return@withContext "In your ${favoriteStyles.take(2)} community, $topColors colors and $topCategories are trending today!"
+            } catch (e: Exception) {
+                e.printStackTrace()
+                ""
             }
         }
     }
