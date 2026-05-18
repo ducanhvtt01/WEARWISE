@@ -39,10 +39,16 @@ class DashboardViewModel : ViewModel() {
     val aiCanvasOutfit = MutableStateFlow<Outfit?>(null)
     var isCanvasLoading by mutableStateOf(false)
     var canvasError by mutableStateOf<String?>(null)
+    val isExplorationModeEnabled = MutableStateFlow(false)
 
     // Global Error Message for UI feedback
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    // --- TRẠNG THÁI LỊCH SỬ CHUYẾN ĐI DU LỊCH VÀ TRIGGER LƯU CHUYỂN MÀN HÌNH ---
+    private val _packingListsHistory = MutableStateFlow<List<PackingListWithItems>>(emptyList())
+    val packingListsHistory: StateFlow<List<PackingListWithItems>> = _packingListsHistory.asStateFlow()
+    var showTravelHistoryTrigger by mutableStateOf(false)
 
     fun clearError() { _errorMessage.value = null }
 
@@ -77,7 +83,44 @@ class DashboardViewModel : ViewModel() {
                             }
                         }
                         .decodeList<ClothingItem>()
-                _clothingItems.value = clothes
+
+                // 🔄 AUTO-RESET COOLDOWN: Tự động đưa đồ dơ/đang giặt về AVAILABLE sau 3 ngày
+                val todayDate = java.util.Date()
+                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                val updatedClothesList = clothes.map { item ->
+                    if (item.status.uppercase() in listOf("WORN", "IN_WASH")) {
+                        val lastWorn = item.lastWornDate
+                        if (lastWorn != null) {
+                            try {
+                                val refDate = formatter.parse(lastWorn.substring(0, 10))
+                                if (refDate != null) {
+                                    val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                                    val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(
+                                        diffInMillies,
+                                        java.util.concurrent.TimeUnit.MILLISECONDS
+                                    )
+                                    if (diffInDays >= 3) {
+                                        // Cập nhật trạng thái mới lên Supabase ngầm
+                                        viewModelScope.launch(Dispatchers.IO) {
+                                            try {
+                                                supabase.from("clothes").update(mapOf("status" to "AVAILABLE")) {
+                                                    filter { eq("id", item.id ?: "") }
+                                                }
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                        return@map item.copy(status = "AVAILABLE")
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+                    item
+                }
+                _clothingItems.value = updatedClothesList
 
                 // Lấy thêm Feedback cho các món đồ này
                 val feedbacks = supabase.from("clothing_feedback")
@@ -486,33 +529,186 @@ class DashboardViewModel : ViewModel() {
                     return@launch
                 }
 
+                val userId = supabase.auth.currentUserOrNull()?.id ?: ""
+                
+                // Fetch usage history to find recently/frequently worn clothes
+                val histories = try {
+                    supabase.from("usage_history")
+                        .select { filter { eq("user_id", userId) } }
+                        .decodeList<UsageHistoryDbModel>()
+                } catch(e: Exception) { emptyList<UsageHistoryDbModel>() }
+                
+                val frequencyMap = if (histories.isNotEmpty()) {
+                    val outfitIds = histories.map { it.outfitId }
+                    val outfitItems = try {
+                        supabase.from("outfit_items")
+                            .select { filter { isIn("outfit_id", outfitIds) } }
+                            .decodeList<OutfitItemDbModel>()
+                    } catch(e: Exception) { emptyList<OutfitItemDbModel>() }
+                    outfitItems.groupingBy { it.clothingId }.eachCount()
+                } else emptyMap()
+
+                // 🧺 VÒNG 1 HARD FILTERING: Lọc bỏ đồ dơ (WORN, IN_WASH) và áp dụng Cooldown Period nghiêm ngặt
+                val todayDate = java.util.Date()
+                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+
+                // Tính wearCount trong 3 ngày qua để phục vụ bộ lọc Bottom
+                val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                    .format(java.util.Date(java.util.Date().time - 3 * 24 * 60 * 60 * 1000L))
+                val recentOutfitIds3Days = histories.filter { hist ->
+                    hist.wornDate?.let { dateStr ->
+                        try {
+                            val refDate = formatter.parse(dateStr.substring(0, 10))
+                            refDate != null && kotlin.math.abs(todayDate.time - refDate.time) <= 3 * 24 * 60 * 60 * 1000L
+                        } catch (e: Exception) { false }
+                    } ?: false
+                }.map { it.outfitId }
+                val recentOutfitItems3Days = if (recentOutfitIds3Days.isNotEmpty()) {
+                    try {
+                        supabase.from("outfit_items")
+                            .select { filter { isIn("outfit_id", recentOutfitIds3Days) } }
+                            .decodeList<OutfitItemDbModel>()
+                    } catch(e: Exception) { emptyList<OutfitItemDbModel>() }
+                } else emptyList()
+                val wearCount3DaysMap = recentOutfitItems3Days.groupingBy { it.clothingId }.eachCount()
+
+                // Phân nhóm và lọc danh sách đồ thực sự sạch (AVAILABLE)
+                val cleanCandidates = currentItems.filter { item ->
+                    val statusUpper = item.status.uppercase()
+                    if (statusUpper in listOf("WORN", "IN_WASH")) return@filter false
+
+                    val cat = item.category.lowercase()
+                    val isTop = cat.contains("top") || cat.contains("áo") || cat.contains("shirt")
+                    val isBottom = cat.contains("bottom") || cat.contains("quần") || cat.contains("pants")
+                    val isOuterwear = cat.contains("outerwear") || cat.contains("khoác") || cat.contains("jacket") || cat.contains("coat")
+
+                    val lastWorn = item.lastWornDate
+                    if (lastWorn != null) {
+                        try {
+                            val refDate = formatter.parse(lastWorn.substring(0, 10))
+                            if (refDate != null) {
+                                val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                                val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(
+                                    diffInMillies,
+                                    java.util.concurrent.TimeUnit.MILLISECONDS
+                                )
+                                
+                                if (isTop && diffInDays < 3) return@filter false
+                                if (isOuterwear && diffInDays < 1) return@filter false
+                                if (isBottom && diffInDays < 3) {
+                                    val totalWears = wearCount3DaysMap[item.id ?: ""] ?: 0
+                                    if (totalWears >= 2) return@filter false
+                                }
+                            }
+                        } catch (e: Exception) {}
+                    }
+                    true
+                }
+
+                // Phân nhóm đồ sạch để kiểm tra Starvation
+                val cleanTops = cleanCandidates.filter { it.category.lowercase().run { contains("top") || contains("áo") || contains("shirt") } }
+                val cleanBottoms = cleanCandidates.filter { it.category.lowercase().run { contains("bottom") || contains("quần") || contains("pants") } }
+                val cleanShoes = cleanCandidates.filter { it.category.lowercase().run { contains("shoes") || contains("giày") } }
+
+                // CLOSET STARVATION GUARD: Nới lỏng nếu cạn kiệt đồ sạch ở các nhóm bắt buộc
+                val finalCandidates = currentItems.filter { item ->
+                    val cat = item.category.lowercase()
+                    val isTop = cat.contains("top") || cat.contains("áo") || cat.contains("shirt")
+                    val isBottom = cat.contains("bottom") || cat.contains("quần") || cat.contains("pants")
+                    val isShoes = cat.contains("shoes") || cat.contains("giày")
+
+                    val isItemClean = cleanCandidates.contains(item)
+
+                    if (isTop && cleanTops.isEmpty()) {
+                        item.status.uppercase() != "IN_WASH" 
+                    } else if (isBottom && cleanBottoms.isEmpty()) {
+                        item.status.uppercase() != "IN_WASH"
+                    } else if (isShoes && cleanShoes.isEmpty()) {
+                        item.status.uppercase() != "IN_WASH"
+                    } else {
+                        isItemClean
+                    }
+                }
+
+                // Tính danh sách đồ mặc trong 7 ngày qua để hiển thị thông tin bổ sung cho AI
+                val recentHistories7Days = histories.filter { hist ->
+                    hist.wornDate?.let { dateStr ->
+                        try {
+                            val refDate = formatter.parse(dateStr.substring(0, 10))
+                            if (refDate != null) {
+                                val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                                val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(
+                                    diffInMillies,
+                                    java.util.concurrent.TimeUnit.MILLISECONDS
+                                )
+                                diffInDays <= 7
+                            } else false
+                        } catch (e: Exception) { false }
+                    } ?: false
+                }
+                val recentOutfitIds7Days = recentHistories7Days.map { it.outfitId }.distinct()
+                val recentClothingIds = if (recentOutfitIds7Days.isNotEmpty()) {
+                    val outfitItems = try {
+                        supabase.from("outfit_items")
+                            .select { filter { isIn("outfit_id", recentOutfitIds7Days) } }
+                            .decodeList<OutfitItemDbModel>()
+                    } catch(e: Exception) { emptyList<OutfitItemDbModel>() }
+                    outfitItems.map { it.clothingId }.toSet()
+                } else emptySet()
+
                 val generativeModel = com.google.ai.client.generativeai.GenerativeModel(
                     modelName = "gemini-3.1-flash-lite",
                     apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
                 )
 
-                val inventoryData = currentItems.joinToString("\n") { 
-                    "- ID: ${it.id} | Name: ${it.clothes_name} | Category: ${it.category} | Color: ${it.mainColor}" 
-                }
+                // Tạo bản đồ hai chiều giữa ID ngắn và các món đồ thực tế (chạy trên finalCandidates!)
+                val shortIdMap = mutableMapOf<String, com.example.dacs3.connectDB.ClothingItem>()
+                val inventoryData = finalCandidates.mapIndexed { index, item ->
+                    val shortId = (index + 1).toString()
+                    shortIdMap[shortId] = item
+                    
+                    val wearCount = frequencyMap[item.id] ?: 0
+                    val recentlyWorn = if (item.id != null && recentClothingIds.contains(item.id)) "YES" else "NO"
+                    "- ID: $shortId | Name: ${item.clothes_name} | Category: ${item.category} | Color: ${item.mainColor} | Times Worn: $wearCount | Worn In Last 7 Days: $recentlyWorn"
+                }.joinToString("\n")
 
-                // FETCH SOCIAL TRENDS (New)
                 val socialTrends = userProfile?.favoriteStyles?.let { getSocialStyleTrends(it) } ?: ""
                 
+                val isExploration = isExplorationModeEnabled.value
+                val styleDirection = if (isExploration) {
+                    """
+                    STYLE DIRECTION: STYLE ADVENTURE (EXPLORATION MODE)
+                    - Choose bold, creative, or high-contrast combinations.
+                    - CRITICAL RULE: Strongly avoid choosing any items where "Times Worn" is greater than 2 or "Worn In Last 7 Days: YES".
+                    - CRITICAL RULE: Actively prioritize and choose items where "Times Worn: 0" or items that have never/rarely been worn.
+                    - Avoid plain/safe choices; explore contrasting color matching (e.g. Blue & Beige, Red & Gray, Green & Yellow) or unique layering options.
+                    """.trimIndent()
+                } else {
+                    """
+                    STYLE DIRECTION: DAILY COMFORT (REGULAR MODE)
+                    - Choose harmonious, safe, and comfortable combinations.
+                    - Prioritize highly compatible color schemes and daily essentials.
+                    """.trimIndent()
+                }
+
                 val prompt = """
                     You are an expert fashion stylist. The current weather is $weatherTemp.
+                    
+                    $styleDirection
                     
                     COMMUNITY TRENDS:
                     $socialTrends
                     
-                    Here is the user's closet inventory:
+                    Here is the user's closet inventory with usage history:
                     $inventoryData
                     
-                    Task: Select 2 to 3 items to create a perfect, stylish outfit for today.
+                    Task: Select 3 to 5 items to create a perfect, stylish, and COMPLETE outfit for today.
                     CRITICAL RULES:
                     1. You MUST select exactly 1 Top (or Shirt/Áo) and exactly 1 Bottom (or Pants/Quần).
-                    2. DO NOT select two Bottoms or two Tops.
-                    3. If the user has Shoes or Outerwear available, you may select 1 to complete the outfit (total 3 items).
-                    4. The IDs you return MUST exactly match the IDs provided above.
+                    2. You MUST select exactly 1 Shoes (or Giày) if they are available in the inventory.
+                    3. If available and appropriate, you may select exactly 1 Outerwear (Áo khoác) and/or exactly 1 Accessories (Phụ kiện) to complete the outfit.
+                    4. DO NOT select duplicates (e.g. two Bottoms, two Tops, or two Shoes).
+                    5. The IDs you return MUST exactly match the simple numerical IDs provided above (e.g. 1, 4, 7).
                     
                     Return ONLY the IDs separated by commas. Do NOT return any other text, markdown, or explanations.
                 """.trimIndent()
@@ -520,30 +716,50 @@ class DashboardViewModel : ViewModel() {
                 val response = generativeModel.generateContent(prompt)
                 val responseText = response.text?.trim() ?: ""
 
-                // Robust ID matching: Check which actual closet IDs are present in the AI's response text.
-                // This is 100% foolproof against AI hallucinations and formatting errors.
-                val matchedItems = currentItems.filter { it.id != null && responseText.contains(it.id, ignoreCase = true) }
+                // Trích xuất tất cả các ID ngắn dưới dạng số từ chuỗi phản hồi
+                val digits = Regex("\\d+").findAll(responseText).map { it.value }.toList()
+                val matchedItems = digits.mapNotNull { shortIdMap[it] }.distinct()
                 
-                if (matchedItems.size >= 2) {
-                    val top = matchedItems.find { it.category.lowercase().run { contains("top") || contains("áo") || contains("shirt") } }
-                    val bottom = matchedItems.find { it.category.lowercase().run { contains("bottom") || contains("quần") || contains("pants") } }
-                    val shoes = matchedItems.find { it.category.lowercase().run { contains("shoes") || contains("giày") } }
+                if (matchedItems.isNotEmpty() || currentItems.isNotEmpty()) {
+                    var top = matchedItems.find { it.category.lowercase().run { contains("top") || contains("áo") || contains("shirt") } }
+                    var bottom = matchedItems.find { it.category.lowercase().run { contains("bottom") || contains("quần") || contains("pants") } }
+                    var shoes = matchedItems.find { it.category.lowercase().run { contains("shoes") || contains("giày") } }
+                    val outerwear = matchedItems.find { it.category.lowercase().run { contains("outerwear") || contains("khoác") || contains("jacket") || contains("coat") } }
+                    val accessories = matchedItems.find { it.category.lowercase().run { contains("accessories") || contains("phụ kiện") || contains("hat") || contains("bag") || contains("belt") } }
+
+                    // LỰA CHỌN DỰ PHÒNG: Nếu AI không chọn được áo, quần hoặc giày, chọn một món từ tủ đồ của người dùng!
+                    // Ưu tiên finalCandidates (đồ sạch), nếu không có thì dùng currentItems (đồ bất kỳ)
+                    if (top == null) {
+                        top = finalCandidates.find { it.category.lowercase().run { contains("top") || contains("áo") || contains("shirt") } }
+                            ?: currentItems.find { it.category.lowercase().run { contains("top") || contains("áo") || contains("shirt") } }
+                    }
+                    if (bottom == null) {
+                        bottom = finalCandidates.find { it.category.lowercase().run { contains("bottom") || contains("quần") || contains("pants") } }
+                            ?: currentItems.find { it.category.lowercase().run { contains("bottom") || contains("quần") || contains("pants") } }
+                    }
+                    if (shoes == null) {
+                        shoes = finalCandidates.find { it.category.lowercase().run { contains("shoes") || contains("giày") } }
+                            ?: currentItems.find { it.category.lowercase().run { contains("shoes") || contains("giày") } }
+                    }
 
                     val finalOutfit = mutableListOf<com.example.dacs3.connectDB.ClothingItem>()
                     if (top != null) finalOutfit.add(top)
                     if (bottom != null) finalOutfit.add(bottom)
                     if (shoes != null) finalOutfit.add(shoes)
+                    if (outerwear != null && outerwear != top && outerwear != bottom && outerwear != shoes) finalOutfit.add(outerwear)
+                    if (accessories != null && accessories != top && accessories != bottom && accessories != shoes) finalOutfit.add(accessories)
                     
-                    // Fill with remaining matched items if less than 3, but NO duplicate bottoms/tops
+                    // Fill with remaining matched items if less than 5, but NO duplicate bottoms/tops/shoes
                     for (item in matchedItems) {
-                        if (finalOutfit.size >= 3) break
+                        if (finalOutfit.size >= 5) break
                         if (!finalOutfit.contains(item)) {
                             val cat = item.category.lowercase()
                             val isBottom = cat.contains("bottom") || cat.contains("quần") || cat.contains("pants")
                             val isTop = cat.contains("top") || cat.contains("áo") || cat.contains("shirt")
+                            val isShoes = cat.contains("shoes") || cat.contains("giày")
                             
-                            // Prevent adding a second top or bottom
-                            if ((isBottom && bottom != null) || (isTop && top != null)) continue
+                            // Prevent adding duplicates
+                            if ((isBottom && bottom != null) || (isTop && top != null) || (isShoes && shoes != null)) continue
                             
                             finalOutfit.add(item)
                         }
@@ -590,6 +806,29 @@ class DashboardViewModel : ViewModel() {
                 _clothingFeedbackMap.value = currentMap
                 
                 println("Feedback saved: Item $clothingId rated $rating")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun washClothingItems(clothingIds: List<String>, targetStatus: String = "AVAILABLE", onSuccess: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Cập nhật trạng thái thành targetStatus trên Supabase
+                supabase.from("clothes").update(mapOf("status" to targetStatus)) {
+                    filter { isIn("id", clothingIds) }
+                }
+                
+                // Đồng bộ trạng thái cục bộ
+                val updatedList = _clothingItems.value.map {
+                    if (it.id in clothingIds) it.copy(status = targetStatus) else it
+                }
+                _clothingItems.value = updatedList
+                
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -660,16 +899,76 @@ class DashboardViewModel : ViewModel() {
                 )
                 supabase.from("usage_history").insert(usage)
                 
-                // 5. CẬP NHẬT last_worn_date cho quần áo
+                // 5. CẬP NHẬT last_worn_date VÀ status cho quần áo theo State Machine & Cooldown
                 val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-                val updateMap = mapOf("last_worn_date" to today)
-                supabase.from("clothes").update(updateMap) {
-                    filter { isIn("id", clothingIds) }
+                
+                val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                    .format(java.util.Date(java.util.Date().time - 3 * 24 * 60 * 60 * 1000L))
+                
+                val recentHistories = try {
+                    supabase.from("usage_history")
+                        .select { filter { eq("user_id", userId); gte("worn_date", threeDaysAgo) } }
+                        .decodeList<UsageHistoryDbModel>()
+                } catch (e: Exception) { emptyList<UsageHistoryDbModel>() }
+                
+                val recentOutfitIds = recentHistories.map { it.outfitId }
+                val recentOutfitItems = if (recentOutfitIds.isNotEmpty()) {
+                    try {
+                        supabase.from("outfit_items")
+                            .select { filter { isIn("outfit_id", recentOutfitIds) } }
+                            .decodeList<OutfitItemDbModel>()
+                    } catch (e: Exception) { emptyList<OutfitItemDbModel>() }
+                } else emptyList()
+                val wearCountMap = recentOutfitItems.groupingBy { it.clothingId }.eachCount()
+
+                // Cập nhật trạng thái từng món đồ dựa trên quy tắc chuyển đổi máy trạng thái
+                clothingIds.forEach { id ->
+                    val item = _clothingItems.value.find { it.id == id }
+                    if (item != null) {
+                        val cat = item.category.lowercase()
+                        val isTop = cat.contains("top") || cat.contains("áo") || cat.contains("shirt")
+                        val isBottom = cat.contains("bottom") || cat.contains("quần") || cat.contains("pants")
+                        val isAccessory = cat.contains("accessories") || cat.contains("phụ kiện")
+                        
+                        val nextStatus = when {
+                            isAccessory -> "AVAILABLE"
+                            isTop -> "WORN"
+                            isBottom -> {
+                                val previousWears = wearCountMap[id] ?: 0
+                                if (previousWears >= 1) "WORN" else "AVAILABLE"
+                            }
+                            else -> "AVAILABLE"
+                        }
+                        
+                        try {
+                            supabase.from("clothes").update(mapOf("last_worn_date" to today, "status" to nextStatus)) {
+                                filter { eq("id", id) }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                 }
 
                 // Cập nhật lại UI Local
-                val updatedItems = _clothingItems.value.map {
-                    if (it.id in clothingIds) it.copy(lastWornDate = today) else it
+                val updatedItems = _clothingItems.value.map { item ->
+                    if (item.id in clothingIds) {
+                        val cat = item.category.lowercase()
+                        val isTop = cat.contains("top") || cat.contains("áo") || cat.contains("shirt")
+                        val isBottom = cat.contains("bottom") || cat.contains("quần") || cat.contains("pants")
+                        val isAccessory = cat.contains("accessories") || cat.contains("phụ kiện")
+                        
+                        val nextStatus = when {
+                            isAccessory -> "AVAILABLE"
+                            isTop -> "WORN"
+                            isBottom -> {
+                                val previousWears = wearCountMap[item.id] ?: 0
+                                if (previousWears >= 1) "WORN" else "AVAILABLE"
+                            }
+                            else -> "AVAILABLE"
+                        }
+                        item.copy(lastWornDate = today, status = nextStatus)
+                    } else item
                 }
                 _clothingItems.value = updatedItems
                 
@@ -784,6 +1083,141 @@ class DashboardViewModel : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
                 ""
+            }
+        }
+    }
+
+    // --- TRAVEL PACKING CRUD OPERATIONS (3NF) ---
+    fun savePackingList(
+        userId: String,
+        destination: String,
+        tripDays: Int,
+        weatherTemp: String,
+        items: List<String>,
+        departureDate: String,
+        returnDate: String,
+        onComplete: (Boolean, String?) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Insert Master packing list
+                val newTrip = PackingListDbModel(
+                    userId = userId,
+                    destination = destination,
+                    tripDays = tripDays,
+                    weatherTemp = weatherTemp,
+                    departureDate = departureDate,
+                    returnDate = returnDate,
+                    isNotified = false
+                )
+                val insertedTrip = supabase.from("packing_lists")
+                    .insert(newTrip) {
+                        select()
+                    }
+                    .decodeSingle<PackingListDbModel>()
+                
+                val tripId = insertedTrip.id ?: run {
+                    withContext(Dispatchers.Main) {
+                        onComplete(false, "Failed to retrieve packing list ID")
+                    }
+                    return@launch
+                }
+                
+                // 2. Insert Detail packing list items in batch
+                val detailItems = items.map { itemName ->
+                    PackingListItemDbModel(
+                        packingListId = tripId,
+                        name = itemName,
+                        isPacked = false
+                    )
+                }
+                if (detailItems.isNotEmpty()) {
+                    supabase.from("packing_list_items").insert(detailItems)
+                }
+                
+                // 3. Reload history
+                fetchPackingLists(userId)
+                
+                withContext(Dispatchers.Main) {
+                    onComplete(true, null)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val err = e.localizedMessage ?: "Unknown error"
+                _errorMessage.value = "Failed to save packing list: $err"
+                withContext(Dispatchers.Main) {
+                    onComplete(false, err)
+                }
+            }
+        }
+    }
+
+    fun fetchPackingLists(userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Query all trips order by created_at descending
+                val trips = supabase.from("packing_lists")
+                    .select {
+                        filter {
+                            eq("user_id", userId)
+                        }
+                        order("created_at", order = Order.DESCENDING)
+                    }
+                    .decodeList<PackingListDbModel>()
+                
+                // Map to with items
+                val withItemsList = trips.map { trip ->
+                    val tripId = trip.id ?: ""
+                    val items = if (tripId.isNotEmpty()) {
+                        supabase.from("packing_list_items")
+                            .select {
+                                filter {
+                                    eq("packing_list_id", tripId)
+                                }
+                            }
+                            .decodeList<PackingListItemDbModel>()
+                    } else emptyList()
+                    PackingListWithItems(list = trip, items = items)
+                }
+                
+                _packingListsHistory.value = withItemsList
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _errorMessage.value = "Failed to load packing lists: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun updatePackingItemStatus(itemId: String, isPacked: Boolean, userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                supabase.from("packing_list_items").update({
+                    set("is_packed", isPacked)
+                }) {
+                    filter {
+                        eq("id", itemId)
+                    }
+                }
+                // Fetch packing list again to update local UI state
+                fetchPackingLists(userId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun deletePackingList(tripId: String, userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                supabase.from("packing_lists").delete {
+                    filter {
+                        eq("id", tripId)
+                    }
+                }
+                fetchPackingLists(userId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _errorMessage.value = "Failed to delete packing list: ${e.localizedMessage}"
             }
         }
     }

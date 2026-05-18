@@ -121,3 +121,29 @@ data class UsageHistoryDbModel(
     val note: String? = null,
     @SerialName("created_at") val createdAt: String? = null
 )
+
+@Serializable
+data class PackingListDbModel(
+    val id: String? = null,
+    @SerialName("user_id") val userId: String,
+    val destination: String,
+    @SerialName("trip_days") val tripDays: Int,
+    @SerialName("weather_temp") val weatherTemp: String,
+    @SerialName("departure_date") val departureDate: String, // yyyy-MM-dd
+    @SerialName("return_date") val returnDate: String, // yyyy-MM-dd
+    @SerialName("is_notified") val isNotified: Boolean = false,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+data class PackingListItemDbModel(
+    val id: String? = null,
+    @SerialName("packing_list_id") val packingListId: String,
+    val name: String,
+    @SerialName("is_packed") val isPacked: Boolean = false
+)
+
+data class PackingListWithItems(
+    val list: PackingListDbModel,
+    val items: List<PackingListItemDbModel>
+)

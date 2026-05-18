@@ -1,6 +1,9 @@
 package com.example.dacs3.dashboard.homeui
 
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.os.Build
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Spring
@@ -97,6 +100,105 @@ fun HomeUI(
     val userProfile = viewModel.userProfile
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    var showScanSourceSheet by remember { mutableStateOf(false) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                            decoder.isMutableRequired = true
+                            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        }
+                    } else {
+                        @Suppress("DEPRECATION")
+                        android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                    }
+
+                    if (bitmap != null) {
+                        scannedBitmap = bitmap
+                        isAiScanning = true
+
+                        val generativeModel = GenerativeModel(
+                            modelName = "gemini-3.1-flash-lite",
+                            apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
+                            generationConfig = generationConfig {
+                                temperature = 0.2f
+                                responseMimeType = "application/json"
+                            }
+                        )
+
+                        val prompt = """
+                            You are a high-end fashion AI analyzer. Inspect the clothing item in this image with extreme care and absolute precision.
+                            
+                            CRITICAL INSTRUCTIONS FOR ACCURACY:
+                            1. "name": Construct a descriptive, premium, and highly accurate name for the item (e.g. "Sleek Charcoal Crewneck Sweater", "Classic Olive Cargo Pants", "Minimalist White Leather Sneakers"). 
+                               - WARNING: DO NOT hallucinate brand names (like "Uniqlo", "Zara", "Nike") unless a brand logo is clearly visible in the image. If no logo is visible, use a pure, premium descriptive fashion name.
+                            2. "category": You must choose strictly from these exact standard categories:
+                               - "Top" (for shirts, t-shirts, blouses, sweaters, hoodies)
+                               - "Bottom" (for pants, jeans, shorts, skirts)
+                               - "Shoes" (for sneakers, boots, formal shoes, sandals)
+                               - "Outerwear" (for jackets, heavy coats, cardigans, blazers)
+                               - "Accessories" (for hats, bags, belts, sunglasses)
+                            3. "main_color": Identify the dominant base color with high accuracy (choose simple, standard, elegant names like: Black, White, Grey, Navy, Blue, Beige, Brown, Olive, Red, Pink, Yellow, Green, Purple). If the item has a pattern, select the primary background color.
+                            4. "seasons": Select the most appropriate seasons (choose from: "Spring", "Summer", "Autumn", "Winter"). Be logical: heavy coats belong to Winter/Autumn; shorts and tank tops belong to Summer/Spring; versatile tees belong to all.
+                            5. "occasions": Select logical occasions (choose from: "Casual", "Work", "Party", "Sport", "Formal") that perfectly fit the item's design style.
+
+                            Return strictly valid JSON with this schema:
+                            {
+                                "name": "Descriptive, brand-accurate item name",
+                                "category": "Top / Bottom / Shoes / Outerwear / Accessories",
+                                "main_color": "Highly accurate base color",
+                                "seasons": ["Season1", "Season2"],
+                                "occasions": ["Occasion1", "Occasion2"]
+                            }
+                        """.trimIndent()
+
+                        val response = generativeModel.generateContent(
+                            content {
+                                image(bitmap)
+                                text(prompt)
+                            }
+                        )
+
+                        val jsonString = response.text ?: "{}"
+                        val json = JSONObject(jsonString)
+
+                        rawScannedJson = json
+
+                        val itemName = json.optString("name", "Unknown Item")
+                        val itemCategory = json.optString("category", "N/A")
+                        val itemColor = json.optString("main_color", "N/A")
+                        val occasionsArray = json.optJSONArray("occasions")
+                        val itemOccasions = if (occasionsArray != null && occasionsArray.length() > 0) {
+                            List(occasionsArray.length()) { occasionsArray.getString(it) }.joinToString(", ")
+                        } else {
+                            "N/A"
+                        }
+
+                        val seasonsArray = json.optJSONArray("seasons")
+                        val itemSeasons = if (seasonsArray != null && seasonsArray.length() > 0) {
+                            List(seasonsArray.length()) { seasonsArray.getString(it) }.joinToString(", ")
+                        } else {
+                            "N/A"
+                        }
+
+                        aiScanResultText = "$itemName\n• Category: $itemCategory\n• Color: $itemColor\n• Seasons: $itemSeasons\n• Occasions: $itemOccasions"
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    aiScanResultText = "AI Scan Error: ${e.localizedMessage}"
+                    rawScannedJson = null
+                } finally {
+                    isAiScanning = false
+                }
+            }
+        }
+    }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
@@ -115,14 +217,28 @@ fun HomeUI(
                     )
 
                     val prompt = """
-                        Analyze this clothing item in the image. 
-                        Return strictly valid JSON with the following schema:
+                        You are a high-end fashion AI analyzer. Inspect the clothing item in this image with extreme care and absolute precision.
+                        
+                        CRITICAL INSTRUCTIONS FOR ACCURACY:
+                        1. "name": Construct a descriptive, premium, and highly accurate name for the item (e.g. "Sleek Charcoal Crewneck Sweater", "Classic Olive Cargo Pants", "Minimalist White Leather Sneakers"). 
+                           - WARNING: DO NOT hallucinate brand names (like "Uniqlo", "Zara", "Nike") unless a brand logo is clearly visible in the image. If no logo is visible, use a pure, premium descriptive fashion name.
+                        2. "category": You must choose strictly from these exact standard categories:
+                           - "Top" (for shirts, t-shirts, blouses, sweaters, hoodies)
+                           - "Bottom" (for pants, jeans, shorts, skirts)
+                           - "Shoes" (for sneakers, boots, formal shoes, sandals)
+                           - "Outerwear" (for jackets, heavy coats, cardigans, blazers)
+                           - "Accessories" (for hats, bags, belts, sunglasses)
+                        3. "main_color": Identify the dominant base color with high accuracy (choose simple, standard, elegant names like: Black, White, Grey, Navy, Blue, Beige, Brown, Olive, Red, Pink, Yellow, Green, Purple). If the item has a pattern, select the primary background color.
+                        4. "seasons": Select the most appropriate seasons (choose from: "Spring", "Summer", "Autumn", "Winter"). Be logical: heavy coats belong to Winter/Autumn; shorts and tank tops belong to Summer/Spring; versatile tees belong to all.
+                        5. "occasions": Select logical occasions (choose from: "Casual", "Work", "Party", "Sport", "Formal") that perfectly fit the item's design style.
+
+                        Return strictly valid JSON with this schema:
                         {
-                            "name": "Brief brand and item name (e.g. Uniqlo Blue Shirt)",
-                            "category": "Choose one: Top, Bottom, Shoes, Outerwear, Accessories",
-                            "main_color": "Dominant color (e.g. Blue, Black, White)",
-                            "seasons": ["Spring", "Summer", "Autumn", "Winter"],
-                            "occasions": ["Casual", "Work", "Party", "Sport", "Formal"]
+                            "name": "Descriptive, brand-accurate item name",
+                            "category": "Top / Bottom / Shoes / Outerwear / Accessories",
+                            "main_color": "Highly accurate base color",
+                            "seasons": ["Season1", "Season2"],
+                            "occasions": ["Occasion1", "Occasion2"]
                         }
                     """.trimIndent()
 
@@ -335,6 +451,7 @@ fun HomeUI(
                         androidx.compose.runtime.LaunchedEffect(userId) {
                             if (userId.isNotEmpty()) {
                                 viewModel.fetchTopFavoriteClothes(userId)
+                                viewModel.fetchPackingLists(userId)
                             }
                         }
                         DashboardContent(
@@ -347,12 +464,13 @@ fun HomeUI(
                             onNavigateToStylist = { selectedTab = 2 },
                             onNavigateToSeasonStores = { season ->
                                 onOpenSeasonStores(season)
-                            }
+                            },
+                            dashboardViewModel = viewModel
                         )
                     }
 
                     1 -> ClosetScreen(viewModel = viewModel) // [SỬA ĐỔI] TRUYỀN VIEWMODEL VÀO CLOSET SCREEN
-                    2 -> StylistScreen()
+                    2 -> StylistScreen(dashboardViewModel = viewModel)
                     3 -> ProfileScreen(
                         isDarkMode = isDarkMode,
                         onThemeChange = onThemeChange,
@@ -615,7 +733,7 @@ fun HomeUI(
                     )
                     .clip(CircleShape)
                     .clickable {
-                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                        showScanSourceSheet = true
                     }
                     .pointerInput(Unit) {
                         detectDragGestures { change, dragAmount ->
@@ -637,6 +755,99 @@ fun HomeUI(
                     fontWeight = FontWeight.Bold,
                     color = if (isDarkMode) Color.DarkGray else Color.White
                 )
+            }
+        }
+
+        if (showScanSourceSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showScanSourceSheet = false },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Scan Your Clothes 📸",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 20.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(110.dp)
+                                .clickable {
+                                    showScanSourceSheet = false
+                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                }
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.PhotoCamera,
+                                    contentDescription = "Camera",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Take Photo",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(110.dp)
+                                .clickable {
+                                    showScanSourceSheet = false
+                                    galleryLauncher.launch("image/*")
+                                }
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Collections,
+                                    contentDescription = "Gallery",
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "From Gallery",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
             }
         }
     }

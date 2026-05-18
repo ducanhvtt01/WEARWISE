@@ -48,6 +48,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,8 +77,13 @@ fun DashboardContent(
     topFavoriteClothes: List<Pair<ClothingItem, Int>> = emptyList(),
     onLogOotd: (List<String>, String, String) -> Unit = { _, _, _ -> },
     onNavigateToStylist: () -> Unit = {},
-    onNavigateToSeasonStores: (String) -> Unit = {}
+    onNavigateToSeasonStores: (String) -> Unit = {},
+    dashboardViewModel: com.example.dacs3.connectDB.DashboardViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
+    val trips by dashboardViewModel.packingListsHistory.collectAsState()
+    val todayDateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+    val activeTripReturningToday = trips.find { it.list.returnDate == todayDateStr }
+
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
 
@@ -577,6 +584,74 @@ fun DashboardContent(
             }
         }
 
+        if (activeTripReturningToday != null) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                    border = BorderStroke(1.dp, Color(0xFFEF9A9A)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 28.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(20.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFCDD2)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Warning, 
+                                null, 
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "CHECK OUT TODAY! 🚨",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFC62828),
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            Text(
+                                text = "Leaving ${activeTripReturningToday.list.destination} today? Verify your packing checklist so you don't leave anything behind!",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFB71C1C)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Button(
+                                onClick = {
+                                    dashboardViewModel.showTravelHistoryTrigger = true
+                                    onNavigateToStylist()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Text(
+                                    text = "Check List",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if (deadItemsCount > 0 && showDeclutterWarning) {
             item {
                 Card(
@@ -864,17 +939,16 @@ fun DashboardContent(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val topsCount = closetItems.count { it.category.equals("top", ignoreCase = true) }
-                val bottomsCount =
-                    closetItems.count { it.category.equals("bottom", ignoreCase = true) }
-                val shoesCount =
-                    closetItems.count { it.category.equals("shoes", ignoreCase = true) }
-                val accsCount =
-                    closetItems.count { it.category.equals("accessories", ignoreCase = true) }
+                val bottomsCount = closetItems.count { it.category.equals("bottom", ignoreCase = true) }
+                val shoesCount = closetItems.count { it.category.equals("shoes", ignoreCase = true) }
+                val outerwearCount = closetItems.count { it.category.equals("outerwear", ignoreCase = true) }
+                val accsCount = closetItems.count { it.category.equals("accessories", ignoreCase = true) }
 
                 val stats = listOf(
                     "Tops" to topsCount.toString(),
                     "Bottoms" to bottomsCount.toString(),
                     "Shoes" to shoesCount.toString(),
+                    "Outerwear" to outerwearCount.toString(),
                     "Accs" to accsCount.toString()
                 )
                 items(stats.size) { index ->

@@ -55,6 +55,7 @@ import com.google.ai.client.generativeai.type.Content
 import com.google.ai.client.generativeai.type.content
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import kotlinx.coroutines.launch
+import io.github.jan.supabase.gotrue.auth
 import java.time.LocalTime
 
 // --- MESSAGE DATA CLASS ---
@@ -168,10 +169,11 @@ fun StylistScreen(
 
 
     val generativeModel = remember(myClosetItems, currentTemp) {
-        val closetData = if (myClosetItems.isNotEmpty()) {
-            myClosetItems.joinToString("\n") { "- ID: ${it.id} | ${it.clothes_name} (${it.category}, Color: ${it.mainColor})" }
+        val cleanItems = myClosetItems.filter { it.status.uppercase() !in listOf("WORN", "IN_WASH") }
+        val closetData = if (cleanItems.isNotEmpty()) {
+            cleanItems.joinToString("\n") { "- ID: ${it.id} | ${it.clothes_name} (${it.category}, Color: ${it.mainColor})" }
         } else {
-            "User's closet is currently empty."
+            "User's closet has no clean items available right now."
         }
 
         GenerativeModel(
@@ -236,7 +238,8 @@ fun StylistScreen(
                         image = bitmap
                     ))
 
-                    val matches = styleMatcherService.matchCelebrityStyle(bitmap, myClosetItems, feedbackMap)
+                    val cleanCelebrityItems = myClosetItems.filter { it.status.uppercase() !in listOf("WORN", "IN_WASH") }
+                    val matches = styleMatcherService.matchCelebrityStyle(bitmap, cleanCelebrityItems, feedbackMap)
     if (matches.isNotEmpty()) {
                         val ids = matches.mapNotNull { it.id }
                         val itemDetails = matches.joinToString("\n") { 
@@ -365,10 +368,22 @@ fun StylistScreen(
     var showPackingSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var destination by remember { mutableStateOf("") }
-    var tripDays by remember { mutableStateOf("") }
     var isAILoading by remember { mutableStateOf(false) }
     var packingItems by remember { mutableStateOf(listOf<String>()) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // --- CÁC BIẾN CHỌN LỊCH VÀ CHUYỂN TAB DU LỊCH ---
+    var activeTab by remember { mutableIntStateOf(0) }
+    var selectedStartDateMillis by remember { mutableStateOf<Long?>(null) }
+    var selectedEndDateMillis by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(dashboardViewModel.showTravelHistoryTrigger) {
+        if (dashboardViewModel.showTravelHistoryTrigger) {
+            showPackingSheet = true
+            activeTab = 1
+            dashboardViewModel.showTravelHistoryTrigger = false
+        }
+    }
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         ModalNavigationDrawer(
@@ -440,7 +455,7 @@ fun StylistScreen(
                                                 Icons.Outlined.Delete,
                                                 contentDescription = "Delete Chat",
                                                 tint = MaterialTheme.colorScheme.error
-                                            )
+                                              )
                                         }
                                     },
                                     onClick = {
@@ -477,10 +492,8 @@ fun StylistScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
-                            // THẦN CHÚ SAFE DRAWING: Tự động tránh Status Bar và Bàn phím
                             .windowInsetsPadding(WindowInsets.safeDrawing)
                     ) {
-                        // --- PHẦN HEADER ---
                         Box(modifier = Modifier.padding(horizontal = 24.dp)) {
                             Row(
                                 modifier = Modifier
@@ -561,7 +574,6 @@ fun StylistScreen(
                             }
                         }
 
-                        // --- PHẦN NỘI DUNG CHÍNH ---
                         Box(modifier = Modifier.weight(1f)) {
                             if (!showChat) {
                                 Column(
@@ -651,7 +663,6 @@ fun StylistScreen(
                             }
                         }
 
-                        // --- PHẦN NHẬP CHAT ---
                         ChatBarSection(
                             promptText = promptText,
                             isTyping = isAiTyping,
@@ -679,204 +690,538 @@ fun StylistScreen(
         ) {
             val sheetFocusManager = LocalFocusManager.current
             val sheetKeyboardController = LocalSoftwareKeyboardController.current
+            val userId = com.example.dacs3.connectDB.supabase.auth.currentUserOrNull()?.id ?: ""
+            var isSavingList by remember { mutableStateOf(false) }
+
+            LaunchedEffect(userId) {
+                if (userId.isNotEmpty()) {
+                    dashboardViewModel.fetchPackingLists(userId)
+                }
+            }
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .heightIn(max = 650.dp)
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "AI Packing Assistant ✈️",
+                    text = "AI Travel Assistant ✈️",
                     fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                TabRow(
+                    selectedTabIndex = activeTab,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 16.dp)
-                )
+                ) {
+                    Tab(
+                        selected = activeTab == 0,
+                        onClick = { activeTab = 0 },
+                        text = { Text("Plan Trip", fontWeight = FontWeight.Bold) },
+                        icon = { Icon(Icons.Filled.FlightTakeoff, null) }
+                    )
+                    Tab(
+                        selected = activeTab == 1,
+                        onClick = { activeTab = 1 },
+                        text = { Text("Trip History", fontWeight = FontWeight.Bold) },
+                        icon = { Icon(Icons.Filled.History, null) }
+                    )
+                }
 
-                OutlinedTextField(
-                    value = destination,
-                    onValueChange = { destination = it },
-                    label = { Text("Where are you going?") },
-                    placeholder = { Text("e.g., Da Lat, Hanoi, Tokyo...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    if (activeTab == 0) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            OutlinedTextField(
+                                value = destination,
+                                onValueChange = { destination = it },
+                                label = { Text("Where are you going?") },
+                                placeholder = { Text("e.g., Da Lat, Hanoi, Tokyo...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                OutlinedTextField(
-                    value = tripDays,
-                    onValueChange = { tripDays = it },
-                    label = { Text("Duration (days)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                            val departureDateStr = selectedStartDateMillis?.let {
+                                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it))
+                            } ?: ""
+                            val returnDateStr = selectedEndDateMillis?.let {
+                                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(it))
+                            } ?: ""
+                            val calculatedTripDays = if (selectedStartDateMillis != null && selectedEndDateMillis != null) {
+                                val diff = selectedEndDateMillis!! - selectedStartDateMillis!!
+                                if (diff >= 0) {
+                                    (diff / (1000 * 60 * 60 * 24)).toInt() + 1
+                                } else 0
+                            } else 0
 
-                Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // 🛫 DEPARTURE DATE
+                                OutlinedButton(
+                                    onClick = {
+                                        val startCalendar = java.util.Calendar.getInstance()
+                                        selectedStartDateMillis?.let { startCalendar.timeInMillis = it }
 
-                Button(
-                    onClick = {
-                        sheetKeyboardController?.hide()
-                        sheetFocusManager.clearFocus()
+                                        android.app.DatePickerDialog(
+                                            context,
+                                            { _, year, month, dayOfMonth ->
+                                                val selectedCal = java.util.Calendar.getInstance().apply {
+                                                    set(java.util.Calendar.YEAR, year)
+                                                    set(java.util.Calendar.MONTH, month)
+                                                    set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                                                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                                                    set(java.util.Calendar.MINUTE, 0)
+                                                    set(java.util.Calendar.SECOND, 0)
+                                                    set(java.util.Calendar.MILLISECOND, 0)
+                                                }
+                                                selectedStartDateMillis = selectedCal.timeInMillis
+                                                if (selectedEndDateMillis != null && selectedCal.timeInMillis > selectedEndDateMillis!!) {
+                                                    selectedEndDateMillis = null
+                                                }
+                                            },
+                                            startCalendar.get(java.util.Calendar.YEAR),
+                                            startCalendar.get(java.util.Calendar.MONTH),
+                                            startCalendar.get(java.util.Calendar.DAY_OF_MONTH)
+                                        ).show()
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(58.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Departure 🛫", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Filled.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = departureDateStr.ifEmpty { "Select Date" },
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp,
+                                                color = if (departureDateStr.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
 
-                        if (destination.isBlank() || tripDays.isBlank()) {
-                            errorMessage = "Please enter both your destination and trip duration."
-                            return@Button
-                        }
+                                // 🛬 RETURN DATE
+                                OutlinedButton(
+                                    onClick = {
+                                        val endCalendar = java.util.Calendar.getInstance()
+                                        selectedEndDateMillis?.let { endCalendar.timeInMillis = it } ?: selectedStartDateMillis?.let { endCalendar.timeInMillis = it }
 
-                        errorMessage = null
-                        packingItems = emptyList()
+                                        android.app.DatePickerDialog(
+                                            context,
+                                            { _, year, month, dayOfMonth ->
+                                                val selectedCal = java.util.Calendar.getInstance().apply {
+                                                    set(java.util.Calendar.YEAR, year)
+                                                    set(java.util.Calendar.MONTH, month)
+                                                    set(java.util.Calendar.DAY_OF_MONTH, dayOfMonth)
+                                                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                                                    set(java.util.Calendar.MINUTE, 0)
+                                                    set(java.util.Calendar.SECOND, 0)
+                                                    set(java.util.Calendar.MILLISECOND, 0)
+                                                }
+                                                val selectedTime = selectedCal.timeInMillis
+                                                if (selectedStartDateMillis != null && selectedTime < selectedStartDateMillis!!) {
+                                                    android.widget.Toast.makeText(context, "Return date cannot be before departure date!", android.widget.Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    selectedEndDateMillis = selectedTime
+                                                }
+                                            },
+                                            endCalendar.get(java.util.Calendar.YEAR),
+                                            endCalendar.get(java.util.Calendar.MONTH),
+                                            endCalendar.get(java.util.Calendar.DAY_OF_MONTH)
+                                        ).show()
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(58.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Return 🛬", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Filled.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = returnDateStr.ifEmpty { "Select Date" },
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp,
+                                                color = if (returnDateStr.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
 
-                        if (myClosetItems.isEmpty()) {
-                            errorMessage =
-                                "Your closet is empty! Please add some clothes to your Closet first."
-                            return@Button
-                        }
+                            if (calculatedTripDays > 0) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Total Duration: $calculatedTripDays Days",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
 
-                        isAILoading = true
-                        scope.launch {
-                            try {
-                                val generativeModelPack = GenerativeModel(
-                                    modelName = "gemini-3.1-flash-lite",
-                                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            Button(
+                                onClick = {
+                                    sheetKeyboardController?.hide()
+                                    sheetFocusManager.clearFocus()
+
+                                    if (destination.isBlank() || selectedStartDateMillis == null || selectedEndDateMillis == null) {
+                                        errorMessage = "Please enter your destination and select dates on the calendar."
+                                        return@Button
+                                    }
+
+                                    errorMessage = null
+                                    packingItems = emptyList()
+
+                                    if (myClosetItems.isEmpty()) {
+                                        errorMessage = "Your closet is empty! Please add some clothes to your Closet first."
+                                        return@Button
+                                    }
+
+                                    isAILoading = true
+                                    scope.launch {
+                                        try {
+                                            val generativeModelPack = GenerativeModel(
+                                                modelName = "gemini-3.1-flash-lite",
+                                                apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
+                                            )
+
+                                            val cleanPackingItems = myClosetItems.filter { it.status.uppercase() !in listOf("WORN", "IN_WASH") }
+                                            val myClosetInventory = cleanPackingItems.joinToString("\n") { "- ${it.clothes_name} (${it.category})" }
+
+                                            val prompt = """
+                                                You are an elite AI travel stylist and packing expert.
+                                                Task: Create a precise packing checklist for an upcoming trip.
+                                                
+                                                TRIP CONTEXT:
+                                                - Destination: $destination
+                                                - Duration: $calculatedTripDays days
+                                                - Real Weather Forecast: $currentTemp
+                                                
+                                                USER'S ACTUAL CLOSET INVENTORY:
+                                                $myClosetInventory
+                                                
+                                                LOGIC REQUIREMENTS (STRICT):
+                                                1. Use this strict mathematical formula for quantities based on $calculatedTripDays days:
+                                                   - Tops/Shirts: 1 item per day (Max 5).
+                                                   - Bottoms/Pants: 1 item per 2 days (Min 1, Max 3).
+                                                   - Underwear & Socks: $calculatedTripDays + 1 (Always add 1 extra for backup).
+                                                   - Shoes: Max 2 pairs.
+                                                2. For CLOTHING, OUTERWEAR, and SHOES: You MUST ONLY select items that explicitly exist in the "USER'S ACTUAL CLOSET INVENTORY" above. DO NOT invent clothing items.
+                                                3. For ESSENTIALS (underwear, toiletries, chargers, etc.): You may suggest these freely.
+                                                4. Do not exceed a total of 15 clothing items to prevent overpacking.
+                                                
+                                                CRITICAL OUTPUT FORMATTING (MUST OBEY):
+                                                - Return ONLY the raw list items. Absolutely NO Markdown formatting.
+                                                - Every single line MUST start with exactly "- " (a dash followed by a space).
+                                            """.trimIndent()
+
+                                            val response = generativeModelPack.generateContent(prompt)
+                                            val responseText = response.text ?: ""
+
+                                            val items = responseText.lines()
+                                                .filter { it.isNotBlank() }
+                                                .map { it.removePrefix("-").trim() }
+
+                                            if (items.isNotEmpty()) {
+                                                packingItems = items
+                                            } else {
+                                                errorMessage = "AI couldn't generate the list. Please try again."
+                                            }
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                            errorMessage = "Error Details: ${e.localizedMessage}"
+                                        } finally {
+                                            isAILoading = false
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                enabled = !isAILoading
+                            ) {
+                                if (isAILoading) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("AI is generating list...", fontWeight = FontWeight.Bold)
+                                } else {
+                                    Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Generate Packing List", fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            if (errorMessage != null) {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.ErrorOutline,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(
+                                            text = errorMessage!!,
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (packingItems.isNotEmpty()) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                                Text(
+                                    text = "Your Packing Checklist:",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
                                 )
 
-                                val myClosetInventory =
-                                    myClosetItems.joinToString("\n") { "- ${it.clothes_name} (${it.category})" }
-
-                                val prompt = """
-                                    You are an elite AI travel stylist and packing expert.
-                                    Task: Create a precise packing checklist for an upcoming trip.
-                                    
-                                    TRIP CONTEXT:
-                                    - Destination: $destination
-                                    - Duration: $tripDays days
-                                    - Real Weather Forecast: $currentTemp
-                                    
-                                    USER'S ACTUAL CLOSET INVENTORY:
-                                    $myClosetInventory
-                                    
-                                    LOGIC REQUIREMENTS (STRICT):
-                                    1. Use this strict mathematical formula for quantities based on $tripDays days:
-                                       - Tops/Shirts: 1 item per day (Max 5).
-                                       - Bottoms/Pants: 1 item per 2 days (Min 1, Max 3).
-                                       - Underwear & Socks: $tripDays + 1 (Always add 1 extra for backup).
-                                       - Shoes: Max 2 pairs.
-                                    2. For CLOTHING, OUTERWEAR, and SHOES: You MUST ONLY select items that explicitly exist in the "USER'S ACTUAL CLOSET INVENTORY" above. DO NOT invent clothing items.
-                                    3. For ESSENTIALS (underwear, toiletries, chargers, etc.): You may suggest these freely.
-                                    4. Do not exceed a total of 15 clothing items to prevent overpacking.
-                                    
-                                    CRITICAL OUTPUT FORMATTING (MUST OBEY):
-                                    - Return ONLY the raw list items. Absolutely NO Markdown formatting.
-                                    - Every single line MUST start with exactly "- " (a dash followed by a space).
-                                """.trimIndent()
-
-                                val response = generativeModelPack.generateContent(prompt)
-                                val responseText = response.text ?: ""
-
-                                val items = responseText.lines()
-                                    .filter { it.isNotBlank() }
-                                    .map { it.removePrefix("-").trim() }
-
-                                if (items.isNotEmpty()) {
-                                    packingItems = items
-                                } else {
-                                    errorMessage =
-                                        "AI couldn't generate the list. Please try again."
+                                packingItems.forEach { item ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(text = item, color = MaterialTheme.colorScheme.onSurface)
+                                    }
                                 }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                errorMessage = "Error Details: ${e.localizedMessage}"
-                            } finally {
-                                isAILoading = false
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (userId.isNotEmpty()) {
+                                            isSavingList = true
+                                            dashboardViewModel.savePackingList(
+                                                userId = userId,
+                                                destination = destination,
+                                                tripDays = calculatedTripDays,
+                                                weatherTemp = currentTemp,
+                                                items = packingItems,
+                                                departureDate = departureDateStr,
+                                                returnDate = returnDateStr,
+                                                onComplete = { success, errorMsg ->
+                                                     isSavingList = false
+                                                     if (success) {
+                                                         android.widget.Toast.makeText(context, "Checklist saved successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                                                         destination = ""
+                                                         selectedStartDateMillis = null
+                                                         selectedEndDateMillis = null
+                                                         packingItems = emptyList()
+                                                         activeTab = 1
+                                                     } else {
+                                                         android.widget.Toast.makeText(context, "Error: ${errorMsg ?: "Unknown error"}", android.widget.Toast.LENGTH_LONG).show()
+                                                     }
+                                                }
+                                            )
+                                        } else {
+                                            android.widget.Toast.makeText(context, "Please sign in to save your checklist!", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    enabled = !isSavingList
+                                ) {
+                                    if (isSavingList) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Saving Checklist...", fontWeight = FontWeight.Bold)
+                                    } else {
+                                        Icon(Icons.Filled.Save, null, tint = Color.White)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Save Checklist & Schedule Departure", fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(32.dp))
+                        }
+                    } else {
+                        val trips by dashboardViewModel.packingListsHistory.collectAsState()
+                        if (trips.isEmpty()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    Icons.Filled.FlightTakeoff,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "No trip history yet.",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Go to 'Plan Trip' to create a packing list!",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(trips) { trip ->
+                                    var isExpanded by remember { mutableStateOf(false) }
+                                    val packedCount = trip.items.count { it.isPacked }
+                                    val totalCount = trip.items.size
+
+                                    Card(
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { isExpanded = !isExpanded }
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = trip.list.destination,
+                                                        fontSize = 18.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Text(
+                                                        text = "${trip.list.departureDate} ➔ ${trip.list.returnDate} (${trip.list.tripDays} Days)",
+                                                        fontSize = 12.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                IconButton(onClick = {
+                                                    dashboardViewModel.deletePackingList(trip.list.id!!, userId)
+                                                }) {
+                                                    Icon(
+                                                        Icons.Filled.Delete,
+                                                        "Delete",
+                                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                                                    )
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            val progress = if (totalCount > 0) packedCount.toFloat() / totalCount else 0f
+                                            LinearProgressIndicator(
+                                                progress = progress,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(6.dp)
+                                                    .clip(RoundedCornerShape(3.dp)),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = "$packedCount / $totalCount Packed Items",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+
+                                            if (isExpanded && totalCount > 0) {
+                                                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                                                trip.items.forEach { item ->
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 2.dp)
+                                                            .clickable {
+                                                                dashboardViewModel.updatePackingItemStatus(item.id!!, !item.isPacked, userId)
+                                                            }
+                                                    ) {
+                                                        Checkbox(
+                                                            checked = item.isPacked,
+                                                            onCheckedChange = { isChecked ->
+                                                                dashboardViewModel.updatePackingItemStatus(item.id!!, isChecked ?: false, userId)
+                                                            },
+                                                            colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
+                                                        )
+                                                        Text(
+                                                            text = item.name,
+                                                            textDecoration = if (item.isPacked) TextDecoration.LineThrough else null,
+                                                            color = if (item.isPacked) Color.Gray else MaterialTheme.colorScheme.onSurface,
+                                                            fontSize = 13.sp
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !isAILoading
-                ) {
-                    if (isAILoading) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("AI is generating list...", fontWeight = FontWeight.Bold)
-                    } else {
-                        Icon(Icons.Filled.AutoAwesome, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Generate Packing List", fontWeight = FontWeight.Bold)
                     }
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (errorMessage != null) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Filled.ErrorOutline,
-                                null,
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = errorMessage!!,
-                                color = MaterialTheme.colorScheme.error,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
-
-                if (packingItems.isNotEmpty()) {
-                    Divider(modifier = Modifier.padding(vertical = 16.dp))
-                    Text(
-                        text = "Your Checklist for $destination:",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .align(Alignment.Start)
-                            .padding(bottom = 8.dp)
-                    )
-
-                    packingItems.forEach { item ->
-                        var isChecked by remember { mutableStateOf(false) }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { isChecked = !isChecked }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = { isChecked = it },
-                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
-                            )
-                            Text(
-                                text = item,
-                                textDecoration = if (isChecked) TextDecoration.LineThrough else null,
-                                color = if (isChecked) Color.Gray else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
@@ -1073,6 +1418,8 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
     val aiCanvasOutfit by viewModel.aiCanvasOutfit.collectAsState()
     val isLoading = viewModel.isCanvasLoading
     val canvasError = viewModel.canvasError
+    val isExplorationMode by viewModel.isExplorationModeEnabled.collectAsState()
+    val feedbackMap by viewModel.clothingFeedbackMap.collectAsState()
     val context = LocalContext.current
 
     Card(
@@ -1112,6 +1459,91 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Premium Animated Toggle Pill
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Regular Style Tab
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (!isExplorationMode) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .clickable {
+                                if (isExplorationMode) {
+                                    viewModel.isExplorationModeEnabled.value = false
+                                    viewModel.aiCanvasOutfit.value = null
+                                }
+                            }
+                            .padding(vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Outlined.Checkroom,
+                                contentDescription = null,
+                                tint = if (!isExplorationMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "Regular Style",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (!isExplorationMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    // Style Adventure Tab
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(if (isExplorationMode) MaterialTheme.colorScheme.secondary else Color.Transparent)
+                            .clickable {
+                                if (!isExplorationMode) {
+                                    viewModel.isExplorationModeEnabled.value = true
+                                    viewModel.aiCanvasOutfit.value = null
+                                }
+                            }
+                            .padding(vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = if (isExplorationMode) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "Style Adventure",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isExplorationMode) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             if (isLoading) {
@@ -1130,6 +1562,7 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                 val outfit = aiCanvasOutfit!!
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     outfit.items.forEach { item ->
+                        val itemRating = feedbackMap[item.id ?: ""] ?: 0
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.weight(1f)) {
                                 OutfitItemPlaceholder(
@@ -1151,12 +1584,41 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                                     imageUrl = item.imageUrl
                                 )
                             }
-                            Column {
-                                IconButton(onClick = { viewModel.saveClothingFeedback(item.id ?: "", 1) }) {
-                                    Icon(Icons.Default.ThumbUp, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(
+                                modifier = Modifier.padding(start = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                IconButton(onClick = {
+                                    val newRating = if (itemRating == 1) 0 else 1
+                                    viewModel.saveClothingFeedback(item.id ?: "", newRating)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (newRating > 0) "Glad you like it! 👍" else "Feedback cleared",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.ThumbUp,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (itemRating == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    )
                                 }
-                                IconButton(onClick = { viewModel.saveClothingFeedback(item.id ?: "", -1) }) {
-                                    Icon(Icons.Default.ThumbDown, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                                IconButton(onClick = {
+                                    val newRating = if (itemRating == -1) 0 else -1
+                                    viewModel.saveClothingFeedback(item.id ?: "", newRating)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (newRating < 0) "Got it, I'll avoid this! 👎" else "Feedback cleared",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.ThumbDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = if (itemRating == -1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    )
                                 }
                             }
                         }

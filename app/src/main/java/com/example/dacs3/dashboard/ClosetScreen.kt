@@ -76,6 +76,7 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
     // --- STATE CHO BOTTOM SHEET ---
     var showItemSheet by remember { mutableStateOf(false) }
     var showAddManualSheet by remember { mutableStateOf(false) }
+    var showLaundrySheet by remember { mutableStateOf(false) }
     var selectedItemToEdit by remember { mutableStateOf<ClothingItem?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -182,6 +183,218 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
         }
     }
 
+    // --- BOTTOM SHEET GIẶT ĐỒ (DO LAUNDRY) ---
+    if (showLaundrySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showLaundrySheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            val dirtyItems = itemsList.filter { it.status.uppercase() in listOf("WORN", "IN_WASH") }
+            var selectedWashingIds by remember { mutableStateOf(dirtyItems.mapNotNull { it.id }.toSet()) }
+            val laundryScope = rememberCoroutineScope()
+            
+            // Xác định xem có bất kỳ món đồ nào đang chọn ở trạng thái WORN (Dơ) hay không
+            val hasSelectedWorn = dirtyItems.any { it.id in selectedWashingIds && it.status.uppercase() == "WORN" }
+            val buttonText = if (hasSelectedWorn) "Start Washing Selected 🧺" else "Collect & Fold Clean Clothes 🌸"
+            val targetStatus = if (hasSelectedWorn) "IN_WASH" else "AVAILABLE"
+            val successMessage = if (hasSelectedWorn) "Selected clothes are now in wash! 🧺✨" else "Your clothes are clean, fresh, and ready to wear! 🌸✨"
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Laundry Basket 🧺",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Select clothes you want to wash & dry",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                if (dirtyItems.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Your wardrobe is sparkling clean! No dirty clothes. 🌸✨",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val isAllSelected = selectedWashingIds.size == dirtyItems.size
+                        Text(
+                            "Selected: ${selectedWashingIds.size}/${dirtyItems.size} items",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        TextButton(
+                            onClick = {
+                                selectedWashingIds = if (isAllSelected) emptySet() else dirtyItems.mapNotNull { it.id }.toSet()
+                            }
+                        ) {
+                            Text(if (isAllSelected) "Deselect All" else "Select All", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Lưới hiển thị danh sách đồ dơ
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        dirtyItems.forEach { item ->
+                            val isSelected = selectedWashingIds.contains(item.id)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable {
+                                        selectedWashingIds = if (isSelected) {
+                                            selectedWashingIds - (item.id ?: "")
+                                        } else {
+                                            selectedWashingIds + (item.id ?: "")
+                                        }
+                                    }
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = {
+                                        selectedWashingIds = if (isSelected) {
+                                            selectedWashingIds - (item.id ?: "")
+                                        } else {
+                                            selectedWashingIds + (item.id ?: "")
+                                        }
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Card(
+                                    modifier = Modifier.size(50.dp),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    if (item.imageUrl.isNotEmpty()) {
+                                        AsyncImage(
+                                            model = item.imageUrl,
+                                            contentDescription = item.clothes_name,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Outlined.Checkroom, null, modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            item.clothes_name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        val isWashing = item.status.uppercase() == "IN_WASH"
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(
+                                                    if (isWashing) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+                                                    else MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isWashing) "Washing" else "Dirty",
+                                                color = if (isWashing) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        "${item.category} | ${item.mainColor ?: "No Color"}",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    val isEnabled = selectedWashingIds.isNotEmpty()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary
+                                    )
+                                ),
+                                alpha = if (isEnabled) 1f else 0.5f
+                            )
+                            .clickable(enabled = isEnabled) {
+                                viewModel.washClothingItems(selectedWashingIds.toList(), targetStatus) {
+                                    showLaundrySheet = false
+                                    laundryScope.launch {
+                                        snackbarHostState.showSnackbar(successMessage)
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = buttonText,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -218,19 +431,52 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                             letterSpacing = (-0.5).sp
                         )
                     }
-                    IconButton(
-                        onClick = { isSearching = true },
-                        modifier = Modifier.background(
-                            MaterialTheme.colorScheme.surface,
-                            CircleShape
-                        )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Filled.Search,
-                            "Search",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(30.dp)
-                        )
+                        IconButton(
+                            onClick = { showLaundrySheet = true },
+                            modifier = Modifier.background(
+                                MaterialTheme.colorScheme.surface,
+                                CircleShape
+                            )
+                        ) {
+                            val dirtyCount = itemsList.count { it.status.uppercase() in listOf("WORN", "IN_WASH") }
+                            BadgedBox(
+                                badge = {
+                                    if (dirtyCount > 0) {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(dirtyCount.toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.LocalLaundryService,
+                                    "Do Laundry",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = { isSearching = true },
+                            modifier = Modifier.background(
+                                MaterialTheme.colorScheme.surface,
+                                CircleShape
+                            )
+                        ) {
+                            Icon(
+                                Icons.Filled.Search,
+                                "Search",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
                     }
                 } else {
                     Box(
@@ -503,7 +749,7 @@ fun ClosetItemCard(
             .clip(RoundedCornerShape(20.dp))
             .clickable(interactionSource = interactionSource, indication = null) { onClick() }
     ) {
-        // ─── Full-bleed background: image or placeholder ───
+        // ─── Nền tràn viền: hình ảnh hoặc trình giữ chỗ ───
         if (item.imageUrl.isNotEmpty()) {
             AsyncImage(
                 model = item.imageUrl,
@@ -533,7 +779,7 @@ fun ClosetItemCard(
             }
         }
 
-        // ─── Bottom gradient overlay for text readability ───
+        // ─── Lớp phủ chuyển sắc phía dưới giúp chữ dễ đọc ───
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -546,7 +792,7 @@ fun ClosetItemCard(
                 )
         )
 
-        // ─── Item name at the bottom ───
+        // ─── Tên món đồ ở phía dưới ───
         Text(
             text = item.clothes_name,
             fontSize = 13.sp,
@@ -559,7 +805,31 @@ fun ClosetItemCard(
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         )
 
-        // ─── Top-right badges: Rarely Worn + Feedback ───
+        // ─── Nhãn góc trên bên trái: Trạng thái vật lý (Dơ / Đang giặt) ───
+        val isDirty = item.status.uppercase() in listOf("WORN", "IN_WASH")
+        if (isDirty) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color(0xFFE53935), Color(0xFFC62828))
+                        )
+                    )
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = if (item.status.uppercase() == "IN_WASH") "Washing 🧺" else "Dirty 🧺",
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // ─── Nhãn góc trên bên phải: Ít mặc + Phản hồi ───
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -599,7 +869,7 @@ fun ClosetItemCard(
             }
         }
 
-        // ─── Dead item border glow effect ───
+        // ─── Hiệu ứng viền phát sáng cho đồ ít mặc ───
         if (isDead) {
             Box(
                 modifier = Modifier

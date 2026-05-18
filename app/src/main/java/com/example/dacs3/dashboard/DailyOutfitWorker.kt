@@ -78,10 +78,11 @@ class DailyOutfitWorker(
                     val history = supabase.from("usage_history").select { filter { eq("user_id", userId) } }.decodeList<UsageHistoryDbModel>()
                     
                     val outfitIds = history.map { it.outfitId }
-                    val frequencyMap = if (outfitIds.isNotEmpty()) {
-                        val outfitItems = supabase.from("outfit_items").select { filter { isIn("outfit_id", outfitIds) } }.decodeList<OutfitItemDbModel>()
-                        outfitItems.groupingBy { it.clothingId }.eachCount()
-                    } else emptyMap()
+                    val outfitItems = if (outfitIds.isNotEmpty()) {
+                        supabase.from("outfit_items").select { filter { isIn("outfit_id", outfitIds) } }.decodeList<OutfitItemDbModel>()
+                    } else emptyList()
+
+                    val frequencyMap = outfitItems.groupingBy { it.clothingId }.eachCount()
 
                     // FETCH FEEDBACK (New)
                     val feedbackList = try {
@@ -91,17 +92,113 @@ class DailyOutfitWorker(
                     } catch (e: Exception) { emptyList<ClothingFeedback>() }
                     val feedbackMap = feedbackList.associate { it.clothingId to it.rating }
 
+                    // TÌM ĐỒ MẶC GẦN ĐÂY (Trong vòng 7 ngày qua)
+                    val todayDate = java.util.Date()
+                    val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                    val recentHistories = history.filter { hist ->
+                        hist.wornDate?.let { dateStr ->
+                            try {
+                                val refDate = formatter.parse(dateStr.substring(0, 10))
+                                if (refDate != null) {
+                                    val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                                    val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(
+                                        diffInMillies,
+                                        java.util.concurrent.TimeUnit.MILLISECONDS
+                                    )
+                                    diffInDays <= 7
+                                } else false
+                            } catch (e: Exception) {
+                                false
+                            }
+                        } ?: false
+                    }
+                    val recentOutfitIds = recentHistories.map { it.outfitId }.toSet()
+                    val recentClothingIds = outfitItems
+                        .filter { it.outfitId in recentOutfitIds }
+                        .map { it.clothingId }
+                        .toSet()
+
+                    // PHÂN TÍCH BÃO HÒA PHONG CÁCH (Trong 5 ngày qua)
+                    val fiveDaysAgoOutfitIds = history.filter { hist ->
+                        hist.wornDate?.let { dateStr ->
+                            try {
+                                val refDate = formatter.parse(dateStr.substring(0, 10))
+                                if (refDate != null) {
+                                    val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
+                                    val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(
+                                        diffInMillies,
+                                        java.util.concurrent.TimeUnit.MILLISECONDS
+                                    )
+                                    diffInDays <= 5
+                                } else false
+                            } catch (e: Exception) {
+                                false
+                            }
+                        } ?: false
+                    }.map { it.outfitId }.toSet()
+                    val fiveDaysClothingIds = outfitItems.filter { it.outfitId in fiveDaysAgoOutfitIds }.map { it.clothingId }
+                    val fiveDaysClothes = wardrobe.filter { it.id in fiveDaysClothingIds }
+                    
+                    val colorCounts = fiveDaysClothes.mapNotNull { it.mainColor }.groupingBy { it }.eachCount()
+                    val maxColorCount = colorCounts.values.maxOrNull() ?: 0
+                    val totalWornCount = fiveDaysClothes.size
+                    
+                    // Kích hoạt Chế độ Khám phá (Exploration Mode) nếu mặc quá trùng lặp về màu sắc hoặc lặp lại đồ
+                    val isExplorationMode = (totalWornCount > 0 && maxColorCount.toFloat() / totalWornCount.toFloat() > 0.6f && maxColorCount >= 3) ||
+                                           (totalWornCount >= 4 && fiveDaysClothingIds.distinct().size <= 3)
+
                     val month = Calendar.getInstance().get(Calendar.MONTH) + 1
                     val season = when(month) {
                         in 3..5 -> "Spring"; in 6..8 -> "Summer"; in 9..11 -> "Autumn"; else -> "Winter"
                     }
 
                     val rs = OutfitRecommendationService()
-                    val bestOutfits = rs.getRecommendations(profile, wardrobe, season, frequencyMap, feedbackMap)
+                    val bestOutfits = rs.getRecommendations(
+                        userProfile = profile,
+                        userWardrobe = wardrobe,
+                        currentSeason = season,
+                        frequencyMap = frequencyMap,
+                        feedbackMap = feedbackMap,
+                        recentClothingIds = recentClothingIds,
+                        isExplorationMode = isExplorationMode
+                    )
+                    
                     if (bestOutfits.isNotEmpty()) {
-                        val top = bestOutfits.first()
-                        localOutfitContext = "Highly recommended items from user's actual closet: " + 
-                            top.items.joinToString { "${it.clothes_name} (${it.category})" }
+                        val options = bestOutfits.take(3)
+                        localOutfitContext = options.mapIndexed { idx, outfit ->
+                            "Option ${idx + 1}: " + outfit.items.joinToString { "${it.clothes_name} (${it.category}, Color: ${it.mainColor})" }
+                        }.joinToString("\n")
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            // 2.7 TRAVEL CHECKOUT CHECK & LOCAL PUSH NOTIFICATION (3NF)
+            if (userId != null) {
+                try {
+                    val todayDateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                    val lists = supabase.from("packing_lists").select {
+                        filter {
+                            eq("user_id", userId)
+                            eq("return_date", todayDateStr)
+                        }
+                    }.decodeList<PackingListDbModel>()
+
+                    if (lists.isNotEmpty()) {
+                        val activeTrip = lists.first()
+                        val items = supabase.from("packing_list_items").select {
+                            filter { eq("packing_list_id", activeTrip.id!!) }
+                        }.decodeList<PackingListItemDbModel>()
+
+                        val totalItems = items.size
+                        val packedItems = items.count { it.isPacked }
+                        
+                        showTravelCheckoutNotification(
+                            destination = activeTrip.destination,
+                            packedCount = packedItems,
+                            totalCount = totalItems
+                        )
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -121,12 +218,15 @@ class DailyOutfitWorker(
                 Context:
                 - Weather: $weatherCondition, Temperature: $temp.
                 - Schedule: $scheduleContext
-                - Actual Wardrobe Suggestions (Local RS): $localOutfitContext
+                - Recommended Outfit Options from the user's actual closet (Local RS):
+                $localOutfitContext
                 
-                Task: Suggest ONE perfect outfit. If local suggestions are provided, PRIORITIZE them as they exist in the user's closet.
+                Task: Select the SINGLE BEST option from the recommended outfit options above that matches today's weather and schedule.
+                If the options are empty, suggest a general outfit.
+                
                 Format exactly like this (no markdown, just 2 lines):
                 Line 1 (Title, max 40 chars, include an emoji): <Catchy Title>
-                Line 2 (Body, max 100 chars): <Brief outfit suggestion based on weather and schedule>
+                Line 2 (Body, max 100 chars): <Brief outfit suggestion mentioning the chosen Option and why it matches weather/schedule>
             """.trimIndent()
 
             val response = generativeModel.generateContent(prompt)
@@ -235,5 +335,48 @@ class DailyOutfitWorker(
             .build()
 
         notificationManager.notify(2003, notification)
+    }
+
+    private fun showTravelCheckoutNotification(destination: String, packedCount: Int, totalCount: Int) {
+        val channelId = "travel_checkout_channel"
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Travel Checkout Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val intent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("wearwise://stylist"),
+            context,
+            MainActivity::class.java
+        ).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context, 1, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val title = "Checkout reminder in $destination! 🚨"
+        val body = "Are you leaving today? You have packed $packedCount / $totalCount items. Tap to double check your list before checkout!"
+
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        notificationManager.notify(2004, notification)
     }
 }
