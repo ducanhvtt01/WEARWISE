@@ -42,6 +42,7 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isVisibled by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -164,29 +165,42 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
 
         // --- NÚT ĐĂNG NHẬP CHÍNH ---
 
+        if (errorMessage != null) {
+            Text(
+                text = errorMessage!!,
+                color = Color.Red,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+
         Button(
             onClick = {
-                if (email.isNotBlank() && password.isNotBlank()) {
-                    scope.launch {
-                        val result = logincheck(email, password)
+                errorMessage = null
+                if (email.isBlank()) {
+                    errorMessage = "Please enter your email address."
+                    return@Button
+                }
+                if (password.isBlank()) {
+                    errorMessage = "Please enter your password."
+                    return@Button
+                }
 
-                        when (result) {
-                            LoginResult.SUCCESS -> {
-                                onLoginSuccess()
-                            }
-                            LoginResult.EMAIL_NOT_CONFIRMED -> {
-                                Toast.makeText(
-                                    context,
-                                    "Please verify your email address!",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            LoginResult.INVALID_CREDENTIALS -> {
-                                Toast.makeText(context, "Email or password is wrong!", Toast.LENGTH_SHORT).show()
-                            }
-                            LoginResult.ERROR -> {
-                                Toast.makeText(context, "Connection error occurred. Please try again later!", Toast.LENGTH_SHORT).show()
-                            }
+                scope.launch {
+                    val result = logincheck(email, password)
+
+                    when (result) {
+                        LoginResult.SUCCESS -> {
+                            onLoginSuccess()
+                        }
+                        LoginResult.EMAIL_NOT_CONFIRMED -> {
+                            errorMessage = "This email address is not verified. Please check your email."
+                        }
+                        LoginResult.INVALID_CREDENTIALS -> {
+                            errorMessage = "Incorrect email or password."
+                        }
+                        is LoginResult.ERROR -> {
+                            errorMessage = result.message
                         }
                     }
                 }

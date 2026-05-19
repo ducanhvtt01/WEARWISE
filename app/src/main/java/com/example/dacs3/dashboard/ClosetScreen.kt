@@ -190,15 +190,26 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.background
         ) {
-            val dirtyItems = itemsList.filter { it.status.uppercase() in listOf("WORN", "IN_WASH") }
-            var selectedWashingIds by remember { mutableStateOf(dirtyItems.mapNotNull { it.id }.toSet()) }
+            var currentTab by remember { mutableStateOf(0) } // 0: Dirty, 1: Washing
+            val dirtyCount = itemsList.count { it.status.uppercase() == "WORN" }
+            val washingCount = itemsList.count { it.status.uppercase() == "IN_WASH" }
+
+            val activeItems = if (currentTab == 0) {
+                itemsList.filter { it.status.uppercase() == "WORN" }
+            } else {
+                itemsList.filter { it.status.uppercase() == "IN_WASH" }
+            }
+            var selectedWashingIds by remember { mutableStateOf(emptySet<String>()) }
+
+            LaunchedEffect(currentTab, itemsList) {
+                selectedWashingIds = activeItems.mapNotNull { it.id }.toSet()
+            }
+
             val laundryScope = rememberCoroutineScope()
             
-            // Xác định xem có bất kỳ món đồ nào đang chọn ở trạng thái WORN (Dơ) hay không
-            val hasSelectedWorn = dirtyItems.any { it.id in selectedWashingIds && it.status.uppercase() == "WORN" }
-            val buttonText = if (hasSelectedWorn) "Start Washing Selected 🧺" else "Collect & Fold Clean Clothes 🌸"
-            val targetStatus = if (hasSelectedWorn) "IN_WASH" else "AVAILABLE"
-            val successMessage = if (hasSelectedWorn) "Selected clothes are now in wash! 🧺✨" else "Your clothes are clean, fresh, and ready to wear! 🌸✨"
+            val buttonText = if (currentTab == 0) "Start Washing Selected 🧺" else "Collect & Fold Clean Clothes 🌸"
+            val targetStatus = if (currentTab == 0) "IN_WASH" else "AVAILABLE"
+            val successMessage = if (currentTab == 0) "Selected clothes are now in wash! 🧺✨" else "Your clothes are clean, fresh, and ready to wear! 🌸✨"
 
             Column(
                 modifier = Modifier
@@ -217,11 +228,75 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                 Text(
                     "Select clothes you want to wash & dry",
                     fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // --- Tab Selector ---
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                        .padding(4.dp)
+                ) {
+                    val isTab0Active = currentTab == 0
+                    val tab0Bg by animateColorAsState(
+                        targetValue = if (isTab0Active) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        label = "tab0Bg"
+                    )
+                    val tab0TextColor by animateColorAsState(
+                        targetValue = if (isTab0Active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        label = "tab0Text"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(tab0Bg)
+                            .clickable { currentTab = 0 }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Dirty ($dirtyCount)",
+                            color = tab0TextColor,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    val isTab1Active = currentTab == 1
+                    val tab1Bg by animateColorAsState(
+                        targetValue = if (isTab1Active) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        label = "tab1Bg"
+                    )
+                    val tab1TextColor by animateColorAsState(
+                        targetValue = if (isTab1Active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        label = "tab1Text"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(tab1Bg)
+                            .clickable { currentTab = 1 }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Washing ($washingCount)",
+                            color = tab1TextColor,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
                 
-                if (dirtyItems.isEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                if (activeItems.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -229,7 +304,8 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "Your wardrobe is sparkling clean! No dirty clothes. 🌸✨",
+                            text = if (currentTab == 0) "Your closet is clean! No dirty clothes. 🌸✨" 
+                                   else "No clothes currently in the wash. 🧺",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.secondary
@@ -241,16 +317,16 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val isAllSelected = selectedWashingIds.size == dirtyItems.size
+                        val isAllSelected = selectedWashingIds.size == activeItems.size
                         Text(
-                            "Selected: ${selectedWashingIds.size}/${dirtyItems.size} items",
+                            "Selected: ${selectedWashingIds.size}/${activeItems.size} items",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         TextButton(
                             onClick = {
-                                selectedWashingIds = if (isAllSelected) emptySet() else dirtyItems.mapNotNull { it.id }.toSet()
+                                selectedWashingIds = if (isAllSelected) emptySet() else activeItems.mapNotNull { it.id }.toSet()
                             }
                         ) {
                             Text(if (isAllSelected) "Deselect All" else "Select All", fontWeight = FontWeight.Bold)
@@ -259,18 +335,18 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // Lưới hiển thị danh sách đồ dơ
+                    // Lưới hiển thị danh sách đồ dơ/đang giặt
                     Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        dirtyItems.forEach { item ->
+                        activeItems.forEach { item ->
                             val isSelected = selectedWashingIds.contains(item.id)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                                     .clickable {
                                         selectedWashingIds = if (isSelected) {
                                             selectedWashingIds - (item.id ?: "")
@@ -347,7 +423,7 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                                     Text(
                                         "${item.category} | ${item.mainColor ?: "No Color"}",
                                         fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
                                 }
                             }

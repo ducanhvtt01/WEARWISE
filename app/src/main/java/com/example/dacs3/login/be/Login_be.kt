@@ -1,17 +1,19 @@
 package com.example.dacs3.login.be
 
+import com.example.dacs3.connectDB.ErrorParser
 import com.example.dacs3.connectDB.supabase
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.providers.builtin.Email
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class LoginResult {
-    SUCCESS,
-    EMAIL_NOT_CONFIRMED,
-    INVALID_CREDENTIALS,
-    ERROR
+sealed class LoginResult {
+    object SUCCESS : LoginResult()
+    object EMAIL_NOT_CONFIRMED : LoginResult()
+    object INVALID_CREDENTIALS : LoginResult()
+    data class ERROR(val message: String) : LoginResult()
 }
+
 public suspend fun logincheck(emailUser: String, passUser: String): LoginResult {
     return withContext(Dispatchers.IO) {
         try {
@@ -39,10 +41,15 @@ public suspend fun logincheck(emailUser: String, passUser: String): LoginResult 
             }
         } catch (e: Exception) {
             println("Error: ${e.message}")
-            if (e.message?.contains("Invalid login credentials", ignoreCase = true) == true) {
+            val errorMsg = e.message ?: ""
+            if (errorMsg.contains("Invalid login credentials", ignoreCase = true) ||
+                errorMsg.contains("invalid_credentials", ignoreCase = true)
+            ) {
                 LoginResult.INVALID_CREDENTIALS
+            } else if (errorMsg.contains("Email not confirmed", ignoreCase = true)) {
+                LoginResult.EMAIL_NOT_CONFIRMED
             } else {
-                LoginResult.ERROR
+                LoginResult.ERROR(ErrorParser.parse(e))
             }
         }
     }
@@ -50,19 +57,19 @@ public suspend fun logincheck(emailUser: String, passUser: String): LoginResult 
 
 // --- NEW PASSWORD RESET FUNCTIONS ---
 
-suspend fun sendResetPasswordEmail(email: String): Boolean {
+suspend fun sendResetPasswordEmail(email: String): String? {
     return withContext(Dispatchers.IO) {
         try {
             supabase.auth.resetPasswordForEmail(email)
-            true
+            null
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            ErrorParser.parse(e)
         }
     }
 }
 
-suspend fun verifyResetOtp(email: String, otp: String): Boolean {
+suspend fun verifyResetOtp(email: String, otp: String): String? {
     return withContext(Dispatchers.IO) {
         try {
             // Dùng OtpType.Email.RECOVERY cho reset password
@@ -71,24 +78,24 @@ suspend fun verifyResetOtp(email: String, otp: String): Boolean {
                 email = email,
                 token = otp
             )
-            true
+            null
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            ErrorParser.parse(e)
         }
     }
 }
 
-suspend fun updateUserPassword(newPassword: String): Boolean {
+suspend fun updateUserPassword(newPassword: String): String? {
     return withContext(Dispatchers.IO) {
         try {
             supabase.auth.updateUser {
                 password = newPassword
             }
-            true
+            null
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            ErrorParser.parse(e)
         }
     }
 }

@@ -73,7 +73,7 @@ class SurveyViewModel : ViewModel() {
                 updateSuccess = true
             } catch (e: Exception) {
                 updateSuccess = false
-                errorMessage = "Could not update survey. Please try again."
+                errorMessage = com.example.dacs3.connectDB.ErrorParser.parse(e)
             } finally {
                 isUpdating = false
             }

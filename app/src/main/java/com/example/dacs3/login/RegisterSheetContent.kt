@@ -34,6 +34,7 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
     var confirmPassword by remember { mutableStateOf("") }
     var isVisibled by remember { mutableStateOf(false) }
     var isConfirmVisibled by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
 
     Column(
@@ -160,24 +161,53 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
+        if (errorMessage != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = errorMessage!!,
+                color = Color.Red,
+                fontSize = 13.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
 
         Button(
             onClick = {
-                if (password == confirmPassword) {
-                    scope.launch {
-                        try {
-                            onRegister(email, password, name)
-                            Toast.makeText(context, "Please check your email for confirmation!", Toast.LENGTH_LONG).show()
-                            onRegisterSuccess()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }
+                errorMessage = null
+                if (name.isBlank()) {
+                    errorMessage = "Please enter your full name."
+                    return@Button
+                }
+                if (email.isBlank()) {
+                    errorMessage = "Please enter your email address."
+                    return@Button
+                }
+                if (password.isBlank()) {
+                    errorMessage = "Please enter your password."
+                    return@Button
+                }
+                if (password.length < 6) {
+                    errorMessage = "Password must be at least 6 characters."
+                    return@Button
+                }
+                if (password != confirmPassword) {
+                    errorMessage = "Passwords do not match."
+                    return@Button
+                }
 
+                scope.launch {
+                    val error = onRegister(email, password, name)
+                    if (error == null) {
+                        Toast.makeText(context, "Registration successful! Please check your email to confirm your account.", Toast.LENGTH_LONG).show()
+                        onRegisterSuccess()
+                    } else {
+                        errorMessage = error
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth().height(54.dp),

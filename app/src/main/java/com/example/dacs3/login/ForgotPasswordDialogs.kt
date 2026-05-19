@@ -151,14 +151,14 @@ fun ForgotPasswordDialog(
                                 modifier = Modifier.clickable {
                                     scope.launch {
                                         isLoading = true
-                                        val success = sendResetPasswordEmail(email)
+                                        val error = sendResetPasswordEmail(email)
                                         isLoading = false
-                                        if (success) {
+                                        if (error == null) {
                                             resendCountdown = 60
                                             otp = ""
                                             errorMessage = null
                                         } else {
-                                            errorMessage = "Failed to resend code."
+                                            errorMessage = error
                                         }
                                     }
                                 }
@@ -231,48 +231,48 @@ fun ForgotPasswordDialog(
                             when (step) {
                                 ResetStep.EMAIL -> {
                                     if (email.isBlank()) {
-                                        errorMessage = "Please enter your email"
+                                        errorMessage = "Please enter your email address."
                                         return@Button
                                     }
                                     isLoading = true
                                     scope.launch {
-                                        val success = sendResetPasswordEmail(email)
+                                        val error = sendResetPasswordEmail(email)
                                         isLoading = false
-                                        if (success) {
+                                        if (error == null) {
                                             step = ResetStep.OTP
                                             resendCountdown = 60
                                         }
-                                        else errorMessage = "Failed to send reset email. Please try again."
+                                        else errorMessage = error
                                     }
                                 }
                                 ResetStep.OTP -> {
                                     if (otp.length < 6) {
-                                        errorMessage = "Please enter the verification code"
+                                        errorMessage = "Please enter the OTP verification code."
                                         return@Button
                                     }
                                     isLoading = true
                                     scope.launch {
-                                        val success = verifyResetOtp(email, otp)
+                                        val error = verifyResetOtp(email, otp)
                                         isLoading = false
-                                        if (success) step = ResetStep.NEW_PASSWORD
-                                        else errorMessage = "Invalid or expired code."
+                                        if (error == null) step = ResetStep.NEW_PASSWORD
+                                        else errorMessage = error
                                     }
                                 }
                                 ResetStep.NEW_PASSWORD -> {
                                     if (newPassword.length < 6) {
-                                        errorMessage = "Password must be at least 6 characters"
+                                        errorMessage = "Password must be at least 6 characters."
                                         return@Button
                                     }
                                     if (newPassword != confirmPassword) {
-                                        errorMessage = "Passwords do not match"
+                                        errorMessage = "Passwords do not match."
                                         return@Button
                                     }
                                     isLoading = true
                                     scope.launch {
-                                        val success = updateUserPassword(newPassword)
+                                        val error = updateUserPassword(newPassword)
                                         isLoading = false
-                                        if (success) step = ResetStep.SUCCESS
-                                        else errorMessage = "Failed to update password."
+                                        if (error == null) step = ResetStep.SUCCESS
+                                        else errorMessage = error
                                     }
                                 }
                                 else -> {}
