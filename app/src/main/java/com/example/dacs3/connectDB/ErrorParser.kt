@@ -34,11 +34,11 @@ object ErrorParser {
             message.contains("email_not_confirmed", ignoreCase = true) ->
                 "This email address is not verified. Please check your inbox to confirm."
 
-            // Lỗi đăng ký trùng email
+            // Lỗi đăng ký trùng email hoặc xung đột phương thức đăng nhập (social vs email)
             message.contains("User already registered", ignoreCase = true) ||
             message.contains("user_already_exists", ignoreCase = true) ||
             message.contains("already exists", ignoreCase = true) ->
-                "This email address is already registered by another account."
+                "This email is already registered. Please use your original sign-in method (Google or Email/Password)."
 
             // Lỗi gửi OTP quá nhanh (rate limit)
             message.contains("rate limit", ignoreCase = true) ||

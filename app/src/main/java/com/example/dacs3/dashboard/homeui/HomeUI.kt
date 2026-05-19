@@ -469,7 +469,10 @@ fun HomeUI(
                         )
                     }
 
-                    1 -> ClosetScreen(viewModel = viewModel) // [SỬA ĐỔI] TRUYỀN VIEWMODEL VÀO CLOSET SCREEN
+                    1 -> ClosetScreen(
+                        viewModel = viewModel,
+                        onNavigateToStylist = { selectedTab = 2 }
+                    )
                     2 -> StylistScreen(dashboardViewModel = viewModel)
                     3 -> ProfileScreen(
                         isDarkMode = isDarkMode,

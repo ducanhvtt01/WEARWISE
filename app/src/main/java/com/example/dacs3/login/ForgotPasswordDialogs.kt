@@ -67,7 +67,7 @@ fun ForgotPasswordDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {},
-        containerColor = OffWhite,
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         text = {
             Column(
@@ -85,14 +85,14 @@ fun ForgotPasswordDialog(
                     },
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MidnightBlue,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
-                        color = Color.Red,
+                        color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
@@ -103,7 +103,7 @@ fun ForgotPasswordDialog(
                         Text(
                             "Enter your email to receive a verification code.",
                             fontSize = 14.sp,
-                            color = MidnightBlue.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
                         OutlinedTextField(
@@ -114,8 +114,12 @@ fun ForgotPasswordDialog(
                             shape = RoundedCornerShape(12.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MidnightBlue,
-                                unfocusedBorderColor = SilverMist
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }
@@ -123,7 +127,7 @@ fun ForgotPasswordDialog(
                         Text(
                             "A code has been sent to $email",
                             fontSize = 14.sp,
-                            color = MidnightBlue.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
                         
@@ -140,13 +144,13 @@ fun ForgotPasswordDialog(
                             Text(
                                 text = "Resend code in ${resendCountdown}s",
                                 fontSize = 13.sp,
-                                color = MidnightBlue.copy(alpha = 0.5f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                         } else {
                             Text(
                                 text = "Resend Code",
                                 fontSize = 13.sp,
-                                color = MidnightBlue,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clickable {
                                     scope.launch {
@@ -179,13 +183,17 @@ fun ForgotPasswordDialog(
                                     Icon(
                                         imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                         contentDescription = null,
-                                        tint = MidnightBlue.copy(alpha = 0.6f)
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MidnightBlue,
-                                unfocusedBorderColor = SilverMist
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -202,13 +210,17 @@ fun ForgotPasswordDialog(
                                     Icon(
                                         imageVector = if (confirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                         contentDescription = null,
-                                        tint = MidnightBlue.copy(alpha = 0.6f)
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MidnightBlue,
-                                unfocusedBorderColor = SilverMist
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }
@@ -216,7 +228,7 @@ fun ForgotPasswordDialog(
                         Text(
                             "Your password has been reset successfully!",
                             fontSize = 14.sp,
-                            color = MidnightBlue.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
                     }
@@ -282,11 +294,14 @@ fun ForgotPasswordDialog(
                             .fillMaxWidth()
                             .height(50.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MidnightBlue),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
                         enabled = !isLoading
                     ) {
                         if (isLoading) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
                         } else {
                             Text(
                                 when (step) {
@@ -306,7 +321,10 @@ fun ForgotPasswordDialog(
                             .fillMaxWidth()
                             .height(50.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MidnightBlue)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
                         Text("Back to Login", fontWeight = FontWeight.Bold)
                     }
@@ -322,6 +340,11 @@ fun OtpInputField(
     onOtpChange: (String) -> Unit,
     count: Int = 8
 ) {
+    val outlineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+    val activeBorderColor = MaterialTheme.colorScheme.primary
+    val boxBgColor = MaterialTheme.colorScheme.surfaceVariant
+    val digitTextColor = MaterialTheme.colorScheme.onSurface
+
     BasicTextField(
         value = otp,
         onValueChange = {
@@ -348,17 +371,17 @@ fun OtpInputField(
                             .height(48.dp)
                             .border(
                                 width = if (isFocused) 2.dp else 1.dp,
-                                color = if (isFocused) MidnightBlue else SilverMist,
+                                color = if (isFocused) activeBorderColor else outlineColor,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .background(OffWhite),
+                            .background(boxBgColor),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = char,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MidnightBlue
+                            color = digitTextColor
                         )
                     }
                 }

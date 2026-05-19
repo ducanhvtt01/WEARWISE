@@ -49,6 +49,7 @@ class DashboardViewModel : ViewModel() {
     private val _packingListsHistory = MutableStateFlow<List<PackingListWithItems>>(emptyList())
     val packingListsHistory: StateFlow<List<PackingListWithItems>> = _packingListsHistory.asStateFlow()
     var showTravelHistoryTrigger by mutableStateOf(false)
+    val stylistPrefilledPrompt = mutableStateOf<String?>(null)
 
     fun clearError() { _errorMessage.value = null }
 

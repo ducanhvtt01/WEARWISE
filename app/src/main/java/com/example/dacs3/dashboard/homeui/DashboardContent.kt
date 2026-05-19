@@ -68,6 +68,8 @@ import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.ui.components.EmptyWardrobeState
 import com.example.dacs3.ui.components.ShimmerCard
 import java.util.Calendar
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -168,10 +170,29 @@ fun DashboardContent(
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(tops.size) { i ->
+                            val item = tops[i]
                             FilterChip(
-                                selected = selectedOotdTop == tops[i],
-                                onClick = { selectedOotdTop = tops[i] },
-                                label = { Text(tops[i].clothes_name) }
+                                selected = selectedOotdTop == item,
+                                onClick = { selectedOotdTop = item },
+                                label = { Text(item.clothes_name) },
+                                leadingIcon = {
+                                    if (item.imageUrl.isNotEmpty()) {
+                                        AsyncImage(
+                                            model = item.imageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(RoundedCornerShape(4.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Filled.Checkroom,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                             )
                         }
                     }
@@ -181,10 +202,29 @@ fun DashboardContent(
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(bottoms.size) { i ->
+                            val item = bottoms[i]
                             FilterChip(
-                                selected = selectedOotdBottom == bottoms[i],
-                                onClick = { selectedOotdBottom = bottoms[i] },
-                                label = { Text(bottoms[i].clothes_name) }
+                                selected = selectedOotdBottom == item,
+                                onClick = { selectedOotdBottom = item },
+                                label = { Text(item.clothes_name) },
+                                leadingIcon = {
+                                    if (item.imageUrl.isNotEmpty()) {
+                                        AsyncImage(
+                                            model = item.imageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(RoundedCornerShape(4.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Filled.Checkroom,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                             )
                         }
                     }
@@ -194,10 +234,29 @@ fun DashboardContent(
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(shoes.size) { i ->
+                            val item = shoes[i]
                             FilterChip(
-                                selected = selectedOotdShoes == shoes[i],
-                                onClick = { selectedOotdShoes = shoes[i] },
-                                label = { Text(shoes[i].clothes_name) }
+                                selected = selectedOotdShoes == item,
+                                onClick = { selectedOotdShoes = item },
+                                label = { Text(item.clothes_name) },
+                                leadingIcon = {
+                                    if (item.imageUrl.isNotEmpty()) {
+                                        AsyncImage(
+                                            model = item.imageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(RoundedCornerShape(4.dp)),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Filled.Checkroom,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                             )
                         }
                     }

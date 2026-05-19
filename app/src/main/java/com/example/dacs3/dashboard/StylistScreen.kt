@@ -347,6 +347,15 @@ fun StylistScreen(
         }
     }
 
+    val prefilledPrompt by dashboardViewModel.stylistPrefilledPrompt
+    LaunchedEffect(prefilledPrompt) {
+        val prompt = prefilledPrompt
+        if (prompt != null) {
+            sendMessageToAI(prompt)
+            dashboardViewModel.stylistPrefilledPrompt.value = null
+        }
+    }
+
     // 3. HÀM TẠO CUỘC TRÒ CHUYỆN MỚI
     fun startNewChat() {
         dashboardViewModel.resetChatSession()
