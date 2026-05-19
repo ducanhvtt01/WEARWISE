@@ -131,7 +131,7 @@ fun FavoriteItemCard(name: String, count: String, imageUrl: String?) {
             ) {
                 Text(
                     text = "${count}x",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
@@ -158,13 +158,13 @@ fun StatCard(title: String, count: String) {
                 count,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.secondary
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 title,
                 fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
             )
         }

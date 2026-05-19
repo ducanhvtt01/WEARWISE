@@ -13,6 +13,7 @@ import com.canhub.cropper.CropImageContractOptions
 import com.canhub.cropper.CropImageOptions
 import com.canhub.cropper.CropImageView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,6 +55,11 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import android.graphics.ImageDecoder
 import android.net.Uri
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.text.style.TextAlign
 
 // HÀM KIỂM TRA QUYỀN RIÊNG ĐỂ TÁI SỬ DỤNG
 fun checkNotificationPermission(context: Context): Boolean {
@@ -97,6 +103,8 @@ fun ProfileScreen(
     var showStyleSheet by remember { mutableStateOf(false) } // State mới cho Style Preferences
     var showEditProfileSheet by remember { mutableStateOf(false) }
     var showImageSourceSheet by remember { mutableStateOf(false) }
+    var showHelpSheet by remember { mutableStateOf(false) }
+    var showPrivacySheet by remember { mutableStateOf(false) }
     
     var tempImageUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -369,6 +377,24 @@ fun ProfileScreen(
         }
     }
 
+    if (showHelpSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showHelpSheet = false },
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            HelpCenterSheetContent(onClose = { showHelpSheet = false })
+        }
+    }
+
+    if (showPrivacySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPrivacySheet = false },
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            PrivacyPolicySheetContent(onClose = { showPrivacySheet = false })
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -602,8 +628,16 @@ fun ProfileScreen(
 
         item {
             SectionTitle("Support")
-            SettingRow(icon = Icons.Outlined.HelpOutline, title = "Help Center")
-            SettingRow(icon = Icons.Outlined.PrivacyTip, title = "Privacy Policy")
+            SettingRow(
+                icon = Icons.Outlined.HelpOutline,
+                title = "Help Center",
+                onClick = { showHelpSheet = true }
+            )
+            SettingRow(
+                icon = Icons.Outlined.PrivacyTip,
+                title = "Privacy Policy",
+                onClick = { showPrivacySheet = true }
+            )
         }
 
         item { Spacer(modifier = Modifier.height(32.dp)) }
@@ -1284,5 +1318,423 @@ fun DeadItemsSheetContent(
             Text("Done")
         }
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+// -------------------------------------------------------------
+// 03. BOTTOM SHEET CHO "HELP CENTER" (PREMIUM INTERACTIVE DESIGN)
+// -------------------------------------------------------------
+@Composable
+fun HelpCenterSheetContent(
+    onClose: () -> Unit
+) {
+    var expandedCardIndex by remember { mutableStateOf(-1) }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 24.dp)
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Header Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Help Center",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = (-0.5).sp
+                )
+                Text(
+                    text = "How can we assist you today?",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            // Premium Close Button
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        shape = CircleShape
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(20.dp))
+        
+        // Scrollable FAQ items
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            val faqs = listOf(
+                FaqItem(
+                    title = "How to use AI Scan? 🖼️",
+                    description = "Go to the Closet tab, tap the scanning icon, and choose 'Take Photo' or 'From Gallery'. Our Gemini AI automatically detects the clothes' category, primary color, seasonal suitabilities, and styles in under 2 seconds!"
+                ),
+                FaqItem(
+                    title = "How does the Travel Assistant work? 🛫",
+                    description = "Open the AI Stylist tab and tap the suitcase icon. Fill in your travel destination and choose your departure/return dates. The assistant automatically queries local weather, filters out dirty/worn items, and creates a tailored packing checklist from your clean clothes."
+                ),
+                FaqItem(
+                    title = "How is my data secured? 🔒",
+                    description = "Your style preferences, measurements, and closet items are private. All network traffic is encrypted via HTTPS (TLS 1.3), and database rows are isolated using strict Row-Level Security (RLS) on Supabase."
+                ),
+                FaqItem(
+                    title = "Can I reset my body measurements? 📏",
+                    description = "Yes! Simply go to your Profile tab, click on 'Body Measurement', update your values in the modal sheet, and press 'Done'. Your AI wardrobe recommendation profile will update instantly."
+                )
+            )
+            
+            faqs.forEachIndexed { index, faq ->
+                ExpandableFaqCard(
+                    title = faq.title,
+                    description = faq.description,
+                    isExpanded = expandedCardIndex == index,
+                    onExpandToggle = {
+                        expandedCardIndex = if (expandedCardIndex == index) -1 else index
+                    }
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Premium Support Contact Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = "Email support",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = "Still need direct support?",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    Text(
+                        text = "Send an email to support@wearwise.com. Our engineering team will get back to you within 24 hours.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+data class FaqItem(val title: String, val description: String)
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+fun ExpandableFaqCard(
+    title: String,
+    description: String,
+    isExpanded: Boolean,
+    onExpandToggle: () -> Unit
+) {
+    val rotationAngle by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        label = "Rotation"
+    )
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onExpandToggle),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isExpanded) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+            }
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isExpanded) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .animateContentSize()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Expand arrow",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .rotate(rotationAngle)
+                        .size(20.dp)
+                )
+            }
+            
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = description,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 19.sp
+                )
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// 04. BOTTOM SHEET CHO "PRIVACY POLICY" (PREMIUM INTERACTIVE DESIGN)
+// -------------------------------------------------------------
+@Composable
+fun PrivacyPolicySheetContent(
+    onClose: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 24.dp)
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Header Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Privacy Policy",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = (-0.5).sp
+                )
+                Text(
+                    text = "Your privacy is our absolute priority",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            // Premium Close Button
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        shape = CircleShape
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(20.dp))
+        
+        // Scrollable content area
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            PrivacyItemCard(
+                icon = Icons.Outlined.PrivacyTip,
+                title = "1. Information We Collect 📝",
+                description = "We strictly collect only the minimal data required for premium features: your account email, measurements, clothing characteristics, and travel packing lists. No unnecessary tracking."
+            )
+            
+            PrivacyItemCard(
+                icon = Icons.Outlined.Lock,
+                title = "2. Data Protection & Encryption 🛡️",
+                description = "All network traffic is encrypted in transit using industry-standard HTTPS (TLS 1.3). Database access is secure and sandboxed using Supabase Row-Level Security (RLS), meaning no other user can ever query or modify your wardrobe data."
+            )
+            
+            PrivacyItemCard(
+                icon = Icons.Outlined.CheckCircle,
+                title = "3. No Third-Party Sharing 🚫",
+                description = "Your private closet items, style preferences, and profile images are kept strictly confidential. We never sell, trade, or share your data with advertisers or third parties."
+            )
+            
+            PrivacyItemCard(
+                icon = Icons.Outlined.Settings,
+                title = "4. User Control & Deletion ⚙️",
+                description = "You have full control over your data. You can delete closet items, clear travel histories, or request permanent account deletion anytime by contacting support@wearwise.com."
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Premium security guarantee notice
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = "Verified Secure",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "WearWise strictly adheres to absolute privacy policies and GDPR-inspired architectural security protocols.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PrivacyItemCard(
+    icon: ImageVector,
+    title: String,
+    description: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(8.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = description,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 19.sp
+                )
+            }
+        }
     }
 }
