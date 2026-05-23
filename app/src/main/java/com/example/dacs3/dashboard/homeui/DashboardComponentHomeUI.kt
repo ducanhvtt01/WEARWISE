@@ -1,5 +1,7 @@
 package com.example.dacs3.dashboard.homeui
 
+import androidx.compose.ui.graphics.Brush
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -105,7 +107,7 @@ fun FavoriteItemCard(name: String, count: String, imageUrl: String?) {
                     .fillMaxWidth()
                     .height(70.dp)
                     .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                        Brush.verticalGradient(
                             colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
                         )
                     )

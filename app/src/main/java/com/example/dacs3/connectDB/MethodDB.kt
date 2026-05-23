@@ -1,5 +1,10 @@
 package com.example.dacs3.connectDB
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.os.Build
+import android.widget.Toast
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -138,7 +143,7 @@ class DashboardViewModel : ViewModel() {
     }
 
     fun uploadAndSaveClothes(
-        bitmap: android.graphics.Bitmap,
+        bitmap: Bitmap,
         clothingItem: ClothingItem,
         onSuccess: () -> Unit
     ) {
@@ -151,11 +156,11 @@ class DashboardViewModel : ViewModel() {
                     val ratio = Math.min(maxSize.toFloat() / bitmap.width, maxSize.toFloat() / bitmap.height)
                     val width = (bitmap.width * ratio).toInt()
                     val height = (bitmap.height * ratio).toInt()
-                    finalBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, width, height, true)
+                    finalBitmap = Bitmap.createScaledBitmap(bitmap, width, height, true)
                 }
                 
                 val baos = ByteArrayOutputStream()
-                finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos)
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
                 val imageBytes = baos.toByteArray()
 
                 // 2. Tạo tên file duy nhất (dùng đuôi .jpg)
@@ -350,11 +355,11 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
-    fun uploadAvatar(context: android.content.Context, userId: String, bitmap: android.graphics.Bitmap) {
+    fun uploadAvatar(context: Context, userId: String, bitmap: Bitmap) {
         viewModelScope.launch(Dispatchers.IO) {
             isUpdating = true
             launch(Dispatchers.Main) {
-                android.widget.Toast.makeText(context, "Updating avatar...", android.widget.Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Updating avatar...", Toast.LENGTH_SHORT).show()
             }
             try {
                 // 1. Tối ưu hóa Bitmap: Resize (giới hạn 512x512) và chuyển sang JPEG
@@ -362,20 +367,20 @@ class DashboardViewModel : ViewModel() {
                 var finalBitmap = bitmap
                 
                 // Đảm bảo không dùng Hardware bitmap để có thể nén/resize
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && 
-                    bitmap.config == android.graphics.Bitmap.Config.HARDWARE) {
-                    finalBitmap = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && 
+                    bitmap.config == Bitmap.Config.HARDWARE) {
+                    finalBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
                 }
 
                 if (finalBitmap.width > maxSize || finalBitmap.height > maxSize) {
                     val ratio = Math.min(maxSize.toFloat() / finalBitmap.width, maxSize.toFloat() / finalBitmap.height)
                     val width = (finalBitmap.width * ratio).toInt()
                     val height = (finalBitmap.height * ratio).toInt()
-                    finalBitmap = android.graphics.Bitmap.createScaledBitmap(finalBitmap, width, height, true)
+                    finalBitmap = Bitmap.createScaledBitmap(finalBitmap, width, height, true)
                 }
                 
                 val baos = ByteArrayOutputStream()
-                finalBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, baos)
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos)
                 val imageBytes = baos.toByteArray()
 
                 // 2. Tạo tên file duy nhất dựa trên UserId
@@ -396,12 +401,12 @@ class DashboardViewModel : ViewModel() {
                 // 6. Cập nhật State UI
                 launch(Dispatchers.Main) {
                     userProfile = userProfile?.copy(avatarUrl = publicUrl)
-                    android.widget.Toast.makeText(context, "Avatar updated successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Avatar updated successfully!", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 launch(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Upload failed: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Upload failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                 }
             } finally {
                 isUpdating = false
@@ -523,9 +528,12 @@ class DashboardViewModel : ViewModel() {
             isCanvasLoading = true
             canvasError = null
             try {
-                val currentItems = _clothingItems.value
+                // Lọc bỏ những món đồ đã bị người dùng Dislike (rating == -1)
+                val dislikedItemIds = _clothingFeedbackMap.value.filterValues { it == -1 }.keys
+                val currentItems = _clothingItems.value.filter { it.id !in dislikedItemIds }
+                
                 if (currentItems.size < 3) {
-                    canvasError = "You need at least 3 items in your closet."
+                    canvasError = "You need at least 3 active (non-disliked) items in your closet."
                     isCanvasLoading = false
                     return@launch
                 }
@@ -792,19 +800,37 @@ class DashboardViewModel : ViewModel() {
             try {
                 val userId = supabase.auth.currentUserOrNull()?.id ?: return@launch
                 
-                // Use upsert to handle multiple feedback updates for the same item
-                val feedback = ClothingFeedback(
-                    userId = userId,
-                    clothingId = clothingId,
-                    rating = rating
-                )
-                
-                supabase.from("clothing_feedback").upsert(feedback)
-                
-                // Update local state map immediately for responsive UI
+                // 1. Cập nhật giao diện (UI) ngay lập tức (Optimistic Update)
                 val currentMap = _clothingFeedbackMap.value.toMutableMap()
                 currentMap[clothingId] = rating
                 _clothingFeedbackMap.value = currentMap
+                
+                // 2. Cập nhật Database
+                val existingFeedback = try {
+                    supabase.from("clothing_feedback").select {
+                        filter {
+                            eq("user_id", userId)
+                            eq("clothing_id", clothingId)
+                        }
+                    }.decodeSingleOrNull<ClothingFeedback>()
+                } catch(e: Exception) { null }
+
+                if (existingFeedback != null && existingFeedback.id != null) {
+                    // Update nếu đã tồn tại
+                    supabase.from("clothing_feedback").update(
+                        { set("rating", rating) }
+                    ) {
+                        filter { eq("id", existingFeedback.id) }
+                    }
+                } else {
+                    // Insert nếu chưa tồn tại
+                    val feedback = ClothingFeedback(
+                        userId = userId,
+                        clothingId = clothingId,
+                        rating = rating
+                    )
+                    supabase.from("clothing_feedback").insert(feedback)
+                }
                 
                 println("Feedback saved: Item $clothingId rated $rating")
             } catch (e: Exception) {
@@ -826,6 +852,12 @@ class DashboardViewModel : ViewModel() {
                     if (it.id in clothingIds) it.copy(status = targetStatus) else it
                 }
                 _clothingItems.value = updatedList
+
+                // Tự động đồng bộ hóa task laundry
+                val userId = supabase.auth.currentUserOrNull()?.id
+                if (userId != null) {
+                    syncLaundryTodo(userId)
+                }
                 
                 withContext(Dispatchers.Main) {
                     onSuccess()
@@ -865,16 +897,20 @@ class DashboardViewModel : ViewModel() {
         clothingIds: List<String>,
         weatherMain: String? = null,
         temp: Float? = null,
-        event: String? = null,
-        mood: String? = null,
-        onSuccess: () -> Unit
+        occasions: List<String> = emptyList(),
+        season: String? = null,
+        onSuccess: () -> Unit,
+        onError: ((String) -> Unit)? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // 1. Tạo Outfit mới
+                val occasionStr = occasions.joinToString(", ").takeIf { it.isNotBlank() }
                 val newOutfit = OutfitDbModel(
                     userId = userId,
-                    name = "OOTD ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}"
+                    name = "OOTD ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())}",
+                    occasion = occasionStr,
+                    season = season
                 )
                 val savedOutfit = supabase.from("outfits").insert(newOutfit) { select() }.decodeSingle<OutfitDbModel>()
                 
@@ -884,10 +920,14 @@ class DashboardViewModel : ViewModel() {
                 }
                 supabase.from("outfit_items").insert(outfitItems)
                 
-                // 3. Tạo ghi chú ngữ cảnh (Event & Mood)
-                val contextNote = if (event != null || mood != null) {
-                    "Occasion: $event | Mood: $mood"
-                } else null
+                // 3. Tạo ghi chú ngữ cảnh
+                val contextNote = buildString {
+                    if (occasionStr != null) append("Occasion: $occasionStr")
+                    if (season != null) {
+                        if (isNotEmpty()) append(" | ")
+                        append("Season: $season")
+                    }
+                }.takeIf { it.isNotBlank() }
 
                 // 4. Lưu vào Usage History
                 val usage = UsageHistoryDbModel(
@@ -979,9 +1019,13 @@ class DashboardViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                launch(Dispatchers.Main) {
+                    onError?.invoke(e.localizedMessage ?: "Unknown error")
+                }
             }
         }
     }
+
 
     // Hàm lấy danh sách đồ được mặc nhiều nhất dựa trên Usage History
     fun fetchTopFavoriteClothes(userId: String) {
@@ -1219,6 +1263,431 @@ class DashboardViewModel : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
                 _errorMessage.value = "Failed to delete packing list: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    // ==========================================
+    // TO-DO LIST OPERATIONS
+    // ==========================================
+    private val _todos = MutableStateFlow<List<TodoDbModel>>(emptyList())
+    val todos: StateFlow<List<TodoDbModel>> = _todos.asStateFlow()
+
+    fun fetchTodos(userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = supabase.from("todos")
+                    .select {
+                        filter { eq("user_id", userId) }
+                        order("created_at", order = Order.DESCENDING)
+                    }
+                    .decodeList<TodoDbModel>()
+                _todos.value = list
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun saveTodo(todo: TodoDbModel, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                supabase.from("todos").insert(todo)
+                fetchTodos(todo.userId)
+                withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    fun updateTodoStatus(todoId: String, isCompleted: Boolean, userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                supabase.from("todos").update(mapOf("is_completed" to isCompleted)) {
+                    filter { eq("id", todoId) }
+                }
+                fetchTodos(userId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun deleteTodo(todoId: String, userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                supabase.from("todos").delete {
+                    filter { eq("id", todoId) }
+                }
+                fetchTodos(userId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // ==========================================
+    // OUTFIT SCHEDULE OPERATIONS
+    // ==========================================
+    private val _outfitSchedules = MutableStateFlow<List<OutfitScheduleWithDetails>>(emptyList())
+    val outfitSchedules: StateFlow<List<OutfitScheduleWithDetails>> = _outfitSchedules.asStateFlow()
+
+    fun fetchOutfitSchedules(userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val userOutfits = supabase.from("outfits")
+                    .select { filter { eq("user_id", userId) } }
+                    .decodeList<OutfitDbModel>()
+                val outfitIds = userOutfits.mapNotNull { it.id }
+                if (outfitIds.isEmpty()) {
+                    _outfitSchedules.value = emptyList()
+                    return@launch
+                }
+                
+                val schedules = supabase.from("outfit_schedules")
+                    .select { filter { isIn("outfit_id", outfitIds) } }
+                    .decodeList<OutfitScheduleDbModel>()
+                    
+                val outfitItems = supabase.from("outfit_items")
+                    .select { filter { isIn("outfit_id", outfitIds) } }
+                    .decodeList<OutfitItemDbModel>()
+                    
+                val itemsMap = outfitItems.groupBy { it.outfitId }
+                val outfitsMap = userOutfits.associateBy { it.id }
+                val allClothes = _clothingItems.value.associateBy { it.id }
+                
+                val listWithDetails = schedules.map { schedule ->
+                    val outfit = outfitsMap[schedule.outfitId]
+                    val outfitName = outfit?.name ?: "Scheduled Outfit"
+                    val clothingIds = itemsMap[schedule.outfitId]?.map { it.clothingId } ?: emptyList()
+                    val items = clothingIds.mapNotNull { allClothes[it] }
+                    OutfitScheduleWithDetails(schedule, outfitName, items)
+                }.sortedBy { it.schedule.plannedDate }
+                
+                _outfitSchedules.value = listWithDetails
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun saveOutfitSchedule(outfitId: String, plannedDate: String, userId: String, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val newSchedule = OutfitScheduleDbModel(
+                    outfitId = outfitId,
+                    plannedDate = plannedDate
+                )
+                supabase.from("outfit_schedules").insert(newSchedule)
+                fetchOutfitSchedules(userId)
+                withContext(Dispatchers.Main) { onComplete(true) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) { onComplete(false) }
+            }
+        }
+    }
+
+    fun createAndScheduleOutfit(
+        userId: String,
+        name: String,
+        occasion: String?,
+        clothingIds: List<String>,
+        plannedDate: String,
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Tạo Outfit mới
+                val newOutfit = OutfitDbModel(
+                    userId = userId,
+                    name = name.ifBlank { "Planned Outfit" },
+                    occasion = occasion?.ifBlank { null }
+                )
+                val savedOutfit = supabase.from("outfits").insert(newOutfit) { select() }.decodeSingle<OutfitDbModel>()
+                val outfitId = savedOutfit.id ?: throw Exception("Failed to save outfit")
+
+                // 2. Lưu các món đồ vào Outfit Items
+                val outfitItems = clothingIds.map { 
+                    OutfitItemDbModel(outfitId = outfitId, clothingId = it)
+                }
+                supabase.from("outfit_items").insert(outfitItems)
+
+                // 3. Lên lịch phối đồ
+                val newSchedule = OutfitScheduleDbModel(
+                    outfitId = outfitId,
+                    plannedDate = plannedDate
+                )
+                supabase.from("outfit_schedules").insert(newSchedule)
+
+                // 4. Cập nhật lại lịch trình
+                fetchOutfitSchedules(userId)
+
+                withContext(Dispatchers.Main) {
+                    onComplete(true)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun deleteOutfitSchedule(scheduleId: String, userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                supabase.from("outfit_schedules").delete {
+                    filter { eq("id", scheduleId) }
+                }
+                fetchOutfitSchedules(userId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // ==========================================
+    // AUTO-SYNC LAUNDRY AND CONFIRM WORN LOGIC
+    // ==========================================
+    fun syncLaundryTodo(userId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val dirtyCount = _clothingItems.value.count { it.status.uppercase() in listOf("WORN", "NEED_IRON") }
+                val existingTodos = supabase.from("todos")
+                    .select {
+                        filter {
+                            eq("user_id", userId)
+                            eq("type", "laundry")
+                            eq("is_completed", false)
+                        }
+                    }
+                    .decodeList<TodoDbModel>()
+                
+                if (dirtyCount > 0) {
+                    val title = "Laundry: You have $dirtyCount dirty items that need washing"
+                    if (existingTodos.isNotEmpty()) {
+                        val existingTodo = existingTodos.first()
+                        supabase.from("todos").update(mapOf("title" to title)) {
+                            filter { eq("id", existingTodo.id ?: "") }
+                        }
+                    } else {
+                        val newTodo = TodoDbModel(
+                            userId = userId,
+                            title = title,
+                            type = "laundry",
+                            isCompleted = false
+                        )
+                        supabase.from("todos").insert(newTodo)
+                    }
+                } else {
+                    existingTodos.forEach { todo ->
+                        supabase.from("todos").update(mapOf("is_completed" to true)) {
+                            filter { eq("id", todo.id ?: "") }
+                        }
+                    }
+                }
+                fetchTodos(userId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun confirmWornOutfit(
+        schedule: OutfitScheduleDbModel,
+        userId: String,
+        weatherMain: String? = null,
+        temp: Float? = null,
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Lưu vào Usage History
+                val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val usage = UsageHistoryDbModel(
+                    userId = userId,
+                    outfitId = schedule.outfitId,
+                    weatherMain = weatherMain,
+                    temperatureC = temp,
+                    wornDate = today
+                )
+                supabase.from("usage_history").insert(usage)
+
+                // 2. Lấy danh sách item thuộc outfit
+                val outfitItems = supabase.from("outfit_items")
+                    .select { filter { eq("outfit_id", schedule.outfitId) } }
+                    .decodeList<OutfitItemDbModel>()
+                val clothingIds = outfitItems.map { it.clothingId }
+
+                // Lấy wearCount 3 ngày qua cho Cooldown
+                val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                    .format(java.util.Date(java.util.Date().time - 3 * 24 * 60 * 60 * 1000L))
+                val recentHistories = try {
+                    supabase.from("usage_history")
+                        .select { filter { eq("user_id", userId); gte("worn_date", threeDaysAgo) } }
+                        .decodeList<UsageHistoryDbModel>()
+                } catch (e: Exception) { emptyList() }
+                
+                val recentOutfitIds = recentHistories.map { it.outfitId }
+                val recentOutfitItems = if (recentOutfitIds.isNotEmpty()) {
+                    try {
+                        supabase.from("outfit_items")
+                            .select { filter { isIn("outfit_id", recentOutfitIds) } }
+                            .decodeList<OutfitItemDbModel>()
+                    } catch (e: Exception) { emptyList() }
+                } else emptyList()
+                val wearCountMap = recentOutfitItems.groupingBy { it.clothingId }.eachCount()
+
+                // 3. Cập nhật trạng thái từng món đồ theo quy tắc máy trạng thái
+                clothingIds.forEach { id ->
+                    val item = _clothingItems.value.find { it.id == id }
+                    if (item != null) {
+                        val cat = item.category.lowercase()
+                        val isTop = cat.contains("top") || cat.contains("áo") || cat.contains("shirt")
+                        val isBottom = cat.contains("bottom") || cat.contains("quần") || cat.contains("pants")
+                        val isAccessory = cat.contains("accessories") || cat.contains("phụ kiện")
+                        
+                        val nextStatus = when {
+                            isAccessory -> "AVAILABLE"
+                            isTop -> "WORN"
+                            isBottom -> {
+                                val previousWears = wearCountMap[id] ?: 0
+                                if (previousWears >= 1) "WORN" else "AVAILABLE"
+                            }
+                            else -> "AVAILABLE"
+                        }
+                        
+                        try {
+                            supabase.from("clothes").update(mapOf("last_worn_date" to today, "status" to nextStatus)) {
+                                filter { eq("id", id) }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+
+                // 4. Xóa schedule
+                schedule.id?.let { scheduleId ->
+                    supabase.from("outfit_schedules").delete { filter { eq("id", scheduleId) } }
+                }
+
+                // 5. Cập nhật local
+                getClothingItems(userId)
+                fetchOutfitSchedules(userId)
+                syncLaundryTodo(userId)
+
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun checkAndCreateWeatherTodo(userId: String, weatherMain: String, tempC: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                val isRainy = weatherMain.lowercase().contains("rain") || weatherMain.lowercase().contains("drizzle") || weatherMain.lowercase().contains("thunderstorm")
+                val isCold = tempC < 18f
+                
+                if (!isRainy && !isCold) return@launch
+                
+                val existingWeatherTodos = supabase.from("todos")
+                    .select {
+                        filter {
+                            eq("user_id", userId)
+                            eq("type", "weather")
+                            eq("due_date", today)
+                        }
+                    }
+                    .decodeList<TodoDbModel>()
+                
+                if (existingWeatherTodos.isNotEmpty()) return@launch
+                
+                val title = when {
+                    isRainy && isCold -> "⚠️ Rainy & Cold ($tempC°C): Bring an umbrella and wear a warm jacket!"
+                    isRainy -> "⚠️ Rainy day: Don't forget an umbrella or raincoat!"
+                    isCold -> "❄️ Cold weather ($tempC°C): Wear a warm jacket or scarf!"
+                    else -> null
+                }
+                
+                if (title != null) {
+                    val weatherTodo = TodoDbModel(
+                        userId = userId,
+                        title = title,
+                        type = "weather",
+                        dueDate = today,
+                        isCompleted = false
+                    )
+                    supabase.from("todos").insert(weatherTodo)
+                    fetchTodos(userId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun generatePackingSuggestions(
+        destination: String,
+        tripDays: Int,
+        weatherTemp: String,
+        onComplete: (List<String>) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val generativeModel = com.google.ai.client.generativeai.GenerativeModel(
+                    modelName = "gemini-3.1-flash-lite",
+                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
+                )
+                
+                val prompt = """
+                    Recommend a packing checklist for a trip to $destination for $tripDays days. 
+                    The expected weather temperature is $weatherTemp.
+                    Provide a list of recommended clothing and travel items.
+                    Return ONLY the items as a plain list, one item per line. Do not include bullet points (- or *), numbers, markdown formatting, or explanations. Keep each item short and clear (maximum 5 words).
+                """.trimIndent()
+                
+                val response = generativeModel.generateContent(prompt)
+                val lines = response.text?.lines()?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+                withContext(Dispatchers.Main) {
+                    onComplete(lines)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    onComplete(emptyList())
+                }
+            }
+        }
+    }
+
+    fun addToWishlist(userId: String, itemName: String, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val wishTodo = TodoDbModel(
+                    userId = userId,
+                    title = "Buy a new $itemName",
+                    type = "wishlist",
+                    isCompleted = false
+                )
+                supabase.from("todos").insert(wishTodo)
+                fetchTodos(userId)
+                withContext(Dispatchers.Main) {
+                    onComplete(true)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    onComplete(false)
+                }
             }
         }
     }

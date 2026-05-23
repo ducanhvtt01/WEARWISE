@@ -1,5 +1,12 @@
 package com.example.dacs3.dashboard
 
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.text.style.TextAlign
+import androidx.core.content.FileProvider
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -16,7 +23,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,9 +63,7 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.text.style.TextAlign
 
 // HÀM KIỂM TRA QUYỀN RIÊNG ĐỂ TÁI SỬ DỤNG
 fun checkNotificationPermission(context: Context): Boolean {
@@ -186,7 +190,7 @@ fun ProfileScreen(
             uri?.let {
                 val bitmap = if (Build.VERSION.SDK_INT < 28) {
                     @Suppress("DEPRECATION")
-                    android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
                 } else {
                     val source = ImageDecoder.createSource(context.contentResolver, it)
                     ImageDecoder.decodeBitmap(source)
@@ -253,7 +257,7 @@ fun ProfileScreen(
             createNewFile()
             deleteOnExit()
         }
-        return androidx.core.content.FileProvider.getUriForFile(
+        return FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
             tempFile
@@ -336,7 +340,7 @@ fun ProfileScreen(
                         cameraSourceLauncher.launch(uri)
                     } catch (e: Exception) {
                         e.printStackTrace()
-                        android.widget.Toast.makeText(context, "Cannot open camera", android.widget.Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Cannot open camera", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
@@ -657,7 +661,7 @@ fun ProfileScreen(
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                border = androidx.compose.foundation.BorderStroke(
+                border = BorderStroke(
                     1.dp,
                     MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
                 )
@@ -1256,7 +1260,7 @@ fun DeadItemsSheetContent(
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 24.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
 
         if (deadItems.isEmpty()) {
@@ -1264,7 +1268,7 @@ fun DeadItemsSheetContent(
                 Text("Your closet is perfectly utilized! ✨", color = MaterialTheme.colorScheme.primary)
             }
         } else {
-            androidx.compose.foundation.lazy.LazyColumn(
+            LazyColumn(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -1390,7 +1394,7 @@ fun HelpCenterSheetContent(
             val faqs = listOf(
                 FaqItem(
                     title = "How to use AI Scan? 🖼️",
-                    description = "Go to the Closet tab, tap the scanning icon, and choose 'Take Photo' or 'From Gallery'. Our Gemini AI automatically detects the clothes' category, primary color, seasonal suitabilities, and styles in under 2 seconds!"
+                    description = "Go to the Closet tab, tap the scanning icon, and choose 'Take Photo' or 'From Gallery'. Our AI automatically detects the clothes' category, primary color, seasonal suitabilities, and styles in under 2 seconds!"
                 ),
                 FaqItem(
                     title = "How does the Travel Assistant work? 🛫",

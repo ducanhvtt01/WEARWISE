@@ -147,3 +147,31 @@ data class PackingListWithItems(
     val list: PackingListDbModel,
     val items: List<PackingListItemDbModel>
 )
+
+// 5. Các mô hình cho To-Do List và Lịch phối đồ (Chuẩn 3NF)
+@Serializable
+data class TodoDbModel(
+    val id: String? = null,
+    @SerialName("user_id") val userId: String,
+    val title: String,
+    val description: String? = null,
+    val type: String, // wishlist, declutter, laundry, event_packing
+    @SerialName("due_date") val dueDate: String? = null, // yyyy-MM-dd
+    @SerialName("is_completed") val isCompleted: Boolean = false,
+    @SerialName("clothing_item_id") val clothingItemId: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+data class OutfitScheduleDbModel(
+    val id: String? = null,
+    @SerialName("outfit_id") val outfitId: String,
+    @SerialName("planned_date") val plannedDate: String, // yyyy-MM-dd
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+data class OutfitScheduleWithDetails(
+    val schedule: OutfitScheduleDbModel,
+    val outfitName: String,
+    val items: List<ClothingItem>
+)

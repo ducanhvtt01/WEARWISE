@@ -1,12 +1,26 @@
 package com.example.dacs3.dashboard
 
+import android.app.DatePickerDialog
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.view.WindowManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.layout.ContentScale
+
 import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -14,7 +28,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Checkroom
@@ -45,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -64,10 +79,10 @@ data class ChatMessage(
     val isFromUser: Boolean,
     val isError: Boolean = false,
     val outfitIds: List<String>? = null,
-    val image: android.graphics.Bitmap? = null
+    val image: Bitmap? = null
 ) {
     companion object {
-        fun fromText(rawText: String, isFromUser: Boolean, isError: Boolean = false, image: android.graphics.Bitmap? = null): ChatMessage {
+        fun fromText(rawText: String, isFromUser: Boolean, isError: Boolean = false, image: Bitmap? = null): ChatMessage {
             if (isFromUser || isError) return ChatMessage(text = rawText, isFromUser = isFromUser, isError = isError, image = image)
             
             val outfitIdRegex = Regex("\\[OUTFIT_IDS:\\s*(.+?)\\]")
@@ -102,6 +117,9 @@ fun StylistScreen(
 
     // Thêm DrawerState để điều khiển thanh trượt lịch sử
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    var showLogOotdDialog by remember { mutableStateOf(false) }
+    var ootdItemIdsToLog by remember { mutableStateOf<List<String>>(emptyList()) }
     
     // Style Matcher Service
     val styleMatcherService = remember { 
@@ -127,6 +145,8 @@ fun StylistScreen(
     val listState = rememberLazyListState()
 
     val currentTemp by weatherViewModel.temperature.collectAsState()
+    val tomorrowTemp by weatherViewModel.tomorrowTemperature.collectAsState()
+    val tomorrowCondition by weatherViewModel.tomorrowCondition.collectAsState()
     val myClosetItems by dashboardViewModel.clothingItems.collectAsState()
     val feedbackMap by dashboardViewModel.clothingFeedbackMap.collectAsState()
     val chatSessions by dashboardViewModel.chatSessions.collectAsState()
@@ -143,7 +163,7 @@ fun StylistScreen(
 
         window?.let {
             WindowCompat.setDecorFitsSystemWindows(it, false)
-            it.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            it.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
 
         onDispose {
@@ -168,7 +188,7 @@ fun StylistScreen(
     }
 
 
-    val generativeModel = remember(myClosetItems, currentTemp) {
+    val generativeModel = remember(myClosetItems, currentTemp, tomorrowTemp, tomorrowCondition) {
         val cleanItems = myClosetItems.filter { it.status.uppercase() !in listOf("WORN", "IN_WASH") }
         val closetData = if (cleanItems.isNotEmpty()) {
             cleanItems.joinToString("\n") { "- ID: ${it.id} | ${it.clothes_name} (${it.category}, Color: ${it.mainColor})" }
@@ -186,7 +206,8 @@ fun StylistScreen(
                     Your goal is to help the user pick outfits, answer fashion questions, and give style advice.
                     
                     CURRENT CONTEXT:
-                    - Local Weather: $currentTemp
+                    - Current Weather: $currentTemp
+                    - Tomorrow's Weather Forecast: $tomorrowTemp ($tomorrowCondition)
                     - Community Fashion Trends: $socialTrends
                     - User's actual closet inventory: 
                     $closetData
@@ -212,9 +233,9 @@ fun StylistScreen(
     }
 
     // --- STYLE MATCH: TRÌNH CHỌN ẢNH IDOL ---
-    val photoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
-    ) { uri: android.net.Uri? ->
+    val photoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
         uri?.let {
             isAiTyping = true
             showChat = true
@@ -223,11 +244,11 @@ fun StylistScreen(
                 try {
                     // Chuyển việc giải mã ảnh sang Dispatchers.IO để tránh làm treo UI
                     val bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        if (android.os.Build.VERSION.SDK_INT < 28) {
-                            android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                        if (Build.VERSION.SDK_INT < 28) {
+                            MediaStore.Images.Media.getBitmap(context.contentResolver, it)
                         } else {
-                            val source = android.graphics.ImageDecoder.createSource(context.contentResolver, it)
-                            android.graphics.ImageDecoder.decodeBitmap(source)
+                            val source = ImageDecoder.createSource(context.contentResolver, it)
+                            ImageDecoder.decodeBitmap(source)
                         }
                     }
 
@@ -507,7 +528,7 @@ fun StylistScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 32.dp, bottom = 20.dp),
+                                    .padding(top = 16.dp, bottom = 20.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -604,7 +625,11 @@ fun StylistScreen(
 
                                     OutfitCanvasSection(
                                         viewModel = dashboardViewModel,
-                                        weatherTemp = currentTemp
+                                        weatherTemp = currentTemp,
+                                        onWearClick = { ids ->
+                                            ootdItemIdsToLog = ids
+                                            showLogOotdDialog = true
+                                        }
                                     )
 
                                     Spacer(modifier = Modifier.height(16.dp))
@@ -636,28 +661,18 @@ fun StylistScreen(
                                                 if (selectedItems.isNotEmpty()) {
                                                     dashboardViewModel.aiCanvasOutfit.value = com.example.dacs3.connectDB.Outfit(selectedItems)
                                                     showChat = false
-                                                    android.widget.Toast.makeText(context, "Outfit selected on Canvas!", android.widget.Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "Outfit selected on Canvas!", Toast.LENGTH_SHORT).show()
                                                 } else {
-                                                    android.widget.Toast.makeText(context, "Could not find these items in your closet.", android.widget.Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "Could not find these items in your closet.", Toast.LENGTH_SHORT).show()
                                                 }
                                             },
                                             onLogOotd = { ids ->
-                                                dashboardViewModel.userProfile?.id?.let { userId ->
-                                                    val tempVal = currentTemp.removeSuffix("°C").replace(",", ".").toFloatOrNull()
-                                                    dashboardViewModel.logOotd(
-                                                        userId = userId,
-                                                        clothingIds = ids,
-                                                        weatherMain = "AI Recommendation",
-                                                        temp = tempVal,
-                                                        onSuccess = {
-                                                            android.widget.Toast.makeText(context, "Saved to OOTD Log! ✨", android.widget.Toast.LENGTH_SHORT).show()
-                                                        }
-                                                    )
-                                                }
+                                                ootdItemIdsToLog = ids
+                                                showLogOotdDialog = true
                                             },
                                             onItemFeedback = { id, rating ->
                                                 dashboardViewModel.saveClothingFeedback(id, rating)
-                                                android.widget.Toast.makeText(context, if (rating > 0) "Glad you like it! 👍" else "Got it, I'll avoid this! 👎", android.widget.Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, if (rating > 0) "Glad you like it! 👍" else "Got it, I'll avoid this! 👎", Toast.LENGTH_SHORT).show()
                                             }
                                         )
                                         Spacer(modifier = Modifier.height(12.dp))
@@ -790,7 +805,7 @@ fun StylistScreen(
                                         val startCalendar = java.util.Calendar.getInstance()
                                         selectedStartDateMillis?.let { startCalendar.timeInMillis = it }
 
-                                        android.app.DatePickerDialog(
+                                        DatePickerDialog(
                                             context,
                                             { _, year, month, dayOfMonth ->
                                                 val selectedCal = java.util.Calendar.getInstance().apply {
@@ -841,7 +856,7 @@ fun StylistScreen(
                                         val endCalendar = java.util.Calendar.getInstance()
                                         selectedEndDateMillis?.let { endCalendar.timeInMillis = it } ?: selectedStartDateMillis?.let { endCalendar.timeInMillis = it }
 
-                                        android.app.DatePickerDialog(
+                                        DatePickerDialog(
                                             context,
                                             { _, year, month, dayOfMonth ->
                                                 val selectedCal = java.util.Calendar.getInstance().apply {
@@ -855,7 +870,7 @@ fun StylistScreen(
                                                 }
                                                 val selectedTime = selectedCal.timeInMillis
                                                 if (selectedStartDateMillis != null && selectedTime < selectedStartDateMillis!!) {
-                                                    android.widget.Toast.makeText(context, "Return date cannot be before departure date!", android.widget.Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "Return date cannot be before departure date!", Toast.LENGTH_SHORT).show()
                                                 } else {
                                                     selectedEndDateMillis = selectedTime
                                                 }
@@ -1063,19 +1078,19 @@ fun StylistScreen(
                                                 onComplete = { success, errorMsg ->
                                                      isSavingList = false
                                                      if (success) {
-                                                         android.widget.Toast.makeText(context, "Checklist saved successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                                                         Toast.makeText(context, "Checklist saved successfully!", Toast.LENGTH_SHORT).show()
                                                          destination = ""
                                                          selectedStartDateMillis = null
                                                          selectedEndDateMillis = null
                                                          packingItems = emptyList()
                                                          activeTab = 1
                                                      } else {
-                                                         android.widget.Toast.makeText(context, "Error: ${errorMsg ?: "Unknown error"}", android.widget.Toast.LENGTH_LONG).show()
+                                                         Toast.makeText(context, "Error: ${errorMsg ?: "Unknown error"}", Toast.LENGTH_LONG).show()
                                                      }
                                                 }
                                             )
                                         } else {
-                                            android.widget.Toast.makeText(context, "Please sign in to save your checklist!", android.widget.Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Please sign in to save your checklist!", Toast.LENGTH_SHORT).show()
                                         }
                                     },
                                     modifier = Modifier
@@ -1234,6 +1249,43 @@ fun StylistScreen(
             }
         }
     }
+
+    LogOotdConfirmDialog(
+        showDialog = showLogOotdDialog,
+        onDismissRequest = {
+            showLogOotdDialog = false
+            ootdItemIdsToLog = emptyList()
+        },
+        onConfirm = { occasions, seasons ->
+            dashboardViewModel.userProfile?.id?.let { userId ->
+                val tempVal = currentTemp.removeSuffix("°C").replace(",", ".").toFloatOrNull()
+                dashboardViewModel.logOotd(
+                    userId = userId,
+                    clothingIds = ootdItemIdsToLog,
+                    weatherMain = "AI Recommendation",
+                    temp = tempVal,
+                    occasions = occasions,
+                    season = seasons.joinToString(", ").takeIf { it.isNotBlank() },
+                    onSuccess = {
+                        Toast.makeText(
+                            context,
+                            "✅ OOTD saved successfully!",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    onError = { errMsg ->
+                        Toast.makeText(
+                            context,
+                            "❌ Failed to save OOTD: $errMsg",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            }
+            showLogOotdDialog = false
+            ootdItemIdsToLog = emptyList()
+        }
+    )
 }
 
 // =======================================================
@@ -1423,7 +1475,7 @@ fun QuickPromptsSection(onPromptClick: (String) -> Unit) {
 }
 
 @Composable
-fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
+fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWearClick: (List<String>) -> Unit) {
     val aiCanvasOutfit by viewModel.aiCanvasOutfit.collectAsState()
     val isLoading = viewModel.isCanvasLoading
     val canvasError = viewModel.canvasError
@@ -1600,10 +1652,10 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                                 IconButton(onClick = {
                                     val newRating = if (itemRating == 1) 0 else 1
                                     viewModel.saveClothingFeedback(item.id ?: "", newRating)
-                                    android.widget.Toast.makeText(
+                                    Toast.makeText(
                                         context,
                                         if (newRating > 0) "Glad you like it! 👍" else "Feedback cleared",
-                                        android.widget.Toast.LENGTH_SHORT
+                                        Toast.LENGTH_SHORT
                                     ).show()
                                 }) {
                                     Icon(
@@ -1616,10 +1668,10 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
                                 IconButton(onClick = {
                                     val newRating = if (itemRating == -1) 0 else -1
                                     viewModel.saveClothingFeedback(item.id ?: "", newRating)
-                                    android.widget.Toast.makeText(
+                                    Toast.makeText(
                                         context,
                                         if (newRating < 0) "Got it, I'll avoid this! 👎" else "Feedback cleared",
-                                        android.widget.Toast.LENGTH_SHORT
+                                        Toast.LENGTH_SHORT
                                     ).show()
                                 }) {
                                     Icon(
@@ -1656,17 +1708,8 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String) {
 
                     Button(
                         onClick = {
-                            val userId = viewModel.userProfile?.id ?: ""
                             val ids = outfit.items.mapNotNull { it.id }
-                            if (userId.isNotBlank()) {
-                                viewModel.logOotd(userId, ids) {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        "Outfit Logged to OOTD!",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
+                            onWearClick(ids)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(28.dp),
@@ -1844,7 +1887,7 @@ fun ChatBubble(
             ) {
                 Column {
                     if (message.image != null) {
-                        androidx.compose.foundation.Image(
+                        Image(
                             bitmap = message.image.asImageBitmap(),
                             contentDescription = "Uploaded Style",
                             modifier = Modifier
@@ -1852,7 +1895,7 @@ fun ChatBubble(
                                 .heightIn(max = 250.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .padding(bottom = 8.dp),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            contentScale = ContentScale.Fit
                         )
                     }
 
@@ -1916,7 +1959,7 @@ fun ChatBubble(
                 // Feedback buttons below the outfit buttons
                 if (message.outfitIds != null && message.outfitIds!!.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    androidx.compose.foundation.lazy.LazyRow(
+                    LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1930,10 +1973,10 @@ fun ChatBubble(
                             ) {
                                 Text("#${index + 1}", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
                                 IconButton(onClick = { onItemFeedback(itemId, 1) }, modifier = Modifier.size(24.dp)) {
-                                    Icon(androidx.compose.material.icons.Icons.Default.ThumbUp, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.ThumbUp, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
                                 IconButton(onClick = { onItemFeedback(itemId, -1) }, modifier = Modifier.size(24.dp)) {
-                                    Icon(androidx.compose.material.icons.Icons.Default.ThumbDown, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                                    Icon(Icons.Default.ThumbDown, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -1992,6 +2035,163 @@ fun PreviewChatBarSection() {
                 onValueChange = {},
                 onSend = {}
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun LogOotdConfirmDialog(
+    showDialog: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirm: (occasions: List<String>, seasons: List<String>) -> Unit
+) {
+    if (!showDialog) return
+
+    val selectedOccasions = remember { mutableStateListOf<String>() }
+    val selectedSeasons = remember { mutableStateListOf<String>() }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = {
+            onDismissRequest()
+            selectedOccasions.clear()
+            selectedSeasons.clear()
+        },
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.background,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Log OOTD ✨",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 26.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = (-0.5).sp
+                    )
+                    Text(
+                        text = "Record your outfit of the day details.",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Occasion
+                Text(
+                    text = "OCCASION",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                val occasionOptions = listOf("Work", "Casual", "Party", "Sport", "Travel", "Wedding", "Date", "Beach")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    occasionOptions.forEach { sugg ->
+                        val isSelected = selectedOccasions.contains(sugg)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .clickable {
+                                    if (isSelected) selectedOccasions.remove(sugg)
+                                    else selectedOccasions.add(sugg)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                sugg, 
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Season
+                Text(
+                    text = "SEASON",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                val seasonOptions = listOf("Spring", "Summer", "Autumn", "Winter")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    seasonOptions.forEach { sugg ->
+                        val isSelected = selectedSeasons.contains(sugg)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .clickable {
+                                    if (isSelected) selectedSeasons.remove(sugg)
+                                    else selectedSeasons.add(sugg)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                sugg, 
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Buttons
+            Button(
+                onClick = {
+                    onConfirm(selectedOccasions.toList(), selectedSeasons.toList())
+                    selectedOccasions.clear()
+                    selectedSeasons.clear()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Save OOTD", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

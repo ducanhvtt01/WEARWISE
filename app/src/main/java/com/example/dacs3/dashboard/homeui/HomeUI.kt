@@ -1,5 +1,12 @@
 package com.example.dacs3.dashboard.homeui
 
+import android.Manifest
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.os.Build
@@ -27,7 +34,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -71,8 +77,12 @@ fun HomeUI(
     onThemeChange: (Boolean) -> Unit = {},
     onLogoutSuccess: () -> Unit,
     onOpenSeasonStores: (String) -> Unit = {},
+    onNavigateToTodo: () -> Unit = {},
+    onNavigateToCalendar: () -> Unit = {},
+    onNavigateToLaundry: () -> Unit = {},
     viewModel: DashboardViewModel = viewModel()
 ) {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     var selectedTab by remember { mutableIntStateOf(0) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -98,7 +108,7 @@ fun HomeUI(
     }
 
     val userProfile = viewModel.userProfile
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
 
     var showScanSourceSheet by remember { mutableStateOf(false) }
 
@@ -115,7 +125,7 @@ fun HomeUI(
                         }
                     } else {
                         @Suppress("DEPRECATION")
-                        android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                        MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
                     }
 
                     if (bitmap != null) {
@@ -294,25 +304,100 @@ fun HomeUI(
                 cameraLauncher.launch(null)
             } catch (e: Exception) {
                 e.printStackTrace()
-                android.widget.Toast.makeText(
+                Toast.makeText(
                     context,
                     "Cannot open camera: ${e.localizedMessage}",
-                    android.widget.Toast.LENGTH_SHORT
+                    Toast.LENGTH_SHORT
                 ).show()
             }
         } else {
-            android.widget.Toast.makeText(
+            Toast.makeText(
                 context,
                 "Camera permission is required for AI Scan",
-                android.widget.Toast.LENGTH_SHORT
+                Toast.LENGTH_SHORT
             ).show()
         }
     }
 
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = drawerState.isOpen,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = MaterialTheme.colorScheme.background,
+                modifier = Modifier.width(300.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                ) {
+                    Text(
+                        text = "WEARWISE",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Text(
+                        text = supabase.auth.currentUserOrNull()?.email ?: "Smart Wardrobe Assistant",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 32.dp)
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(bottom = 24.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+                    NavigationDrawerItem(
+                        label = { Text("🗓️  Calendar & Outfit Diary", fontWeight = FontWeight.Bold) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToCalendar()
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("🧺  Laundry Tracker", fontWeight = FontWeight.Bold) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToLaundry()
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
+                    NavigationDrawerItem(
+                        label = { Text("📝  Wardrobe To-Do List", fontWeight = FontWeight.Bold) },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onNavigateToTodo()
+                        },
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    Text(
+                        text = "WearWise v1.0.0",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 val items = listOf("Home", "Closet", "Stylist", "Profile")
                 val icons = listOf(
@@ -369,7 +454,7 @@ fun HomeUI(
                                 .fillMaxSize()
                                 .padding(horizontal = 8.dp),
                             horizontalArrangement = Arrangement.SpaceAround,
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             items.forEachIndexed { index, label ->
                                 val isSelected = selectedTab == index
@@ -448,7 +533,7 @@ fun HomeUI(
                 when (selectedTab) {
                     0 -> {
                         val topFavoriteClothes by viewModel.topFavoriteClothes.collectAsState()
-                        androidx.compose.runtime.LaunchedEffect(userId) {
+                        LaunchedEffect(userId) {
                             if (userId.isNotEmpty()) {
                                 viewModel.fetchTopFavoriteClothes(userId)
                                 viewModel.fetchPackingLists(userId)
@@ -458,13 +543,27 @@ fun HomeUI(
                             currentProfile = userProfile,
                             closetItems = closetItems,
                             topFavoriteClothes = topFavoriteClothes,
-                            onLogOotd = { ids, event, mood ->
-                                viewModel.logOotd(userId, ids, null, null, event, mood) {}
+                            onLogOotd = { ids, occasions, season ->
+                                viewModel.logOotd(
+                                    userId = userId,
+                                    clothingIds = ids,
+                                    occasions = occasions,
+                                    season = season,
+                                    onSuccess = {}
+                                )
                             },
                             onNavigateToStylist = { selectedTab = 2 },
                             onNavigateToSeasonStores = { season ->
                                 onOpenSeasonStores(season)
                             },
+                            onMenuClick = {
+                                scope.launch {
+                                    if (drawerState.isClosed) drawerState.open()
+                                }
+                            },
+                            onNavigateToTodo = onNavigateToTodo,
+                            onNavigateToCalendar = onNavigateToCalendar,
+                            onNavigateToLaundry = onNavigateToLaundry,
                             dashboardViewModel = viewModel
                         )
                     }
@@ -793,7 +892,7 @@ fun HomeUI(
                                 .height(110.dp)
                                 .clickable {
                                     showScanSourceSheet = false
-                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                 }
                         ) {
                             Column(
@@ -854,6 +953,7 @@ fun HomeUI(
             }
         }
     }
+}
 }
 
 

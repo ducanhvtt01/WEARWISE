@@ -38,7 +38,7 @@ import com.example.dacs3.login.ui.theme.*
 
 enum class AuthSheetType {LOGIN, REGISTER}
 
-@androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class)
 @Composable
 fun LoginScreen(showSplash: Boolean = true, onLoginSuccess: () -> Unit) { // Nhận callback từ MainActivity
     val context = LocalContext.current
@@ -96,8 +96,7 @@ fun LoginScreen(showSplash: Boolean = true, onLoginSuccess: () -> Unit) { // Nh�
     }
 }
 
-@androidx.annotation.OptIn(UnstableApi::class)
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun WelcomeScreen(exoPlayer: ExoPlayer?, onLoginSuccess: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

@@ -1,15 +1,21 @@
-// Chuyên lo điều hướng các màn hình
 package com.example.dacs3
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navDeepLink
+import com.example.dacs3.connectDB.DashboardViewModel
 import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.connectDB.supabase
+import com.example.dacs3.dashboard.CalendarScreen
+import com.example.dacs3.dashboard.LaundryScreen
+import com.example.dacs3.dashboard.TodoScreen
 import com.example.dacs3.dashboard.StylistScreen
 import com.example.dacs3.dashboard.homeui.HomeUI
 import com.example.dacs3.login.LoginScreen
@@ -26,6 +32,7 @@ fun AppNavigation(
     onThemeChange: (Boolean) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val dashboardViewModel: DashboardViewModel = viewModel()
 
     LaunchedEffect(Unit) {
         val session = supabase.auth.currentSessionOrNull()
@@ -36,7 +43,11 @@ fun AppNavigation(
 
     NavHost(
         navController = navController,
-        startDestination = "login"
+        startDestination = "login",
+        enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
+        exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) },
+        popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
+        popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) }
     ) {
         composable("login") {
             LoginScreen(
@@ -54,10 +65,10 @@ fun AppNavigation(
 
         composable(
             route = "login_no_splash",
-            enterTransition = { androidx.compose.animation.EnterTransition.None },
-            exitTransition = { androidx.compose.animation.ExitTransition.None },
-            popEnterTransition = { androidx.compose.animation.EnterTransition.None },
-            popExitTransition = { androidx.compose.animation.ExitTransition.None }
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
         ) {
             LoginScreen(
                 showSplash = false,
@@ -93,17 +104,18 @@ fun AppNavigation(
             route = "home",
             exitTransition = {
                 if (targetState.destination.route == "login_no_splash") {
-                    androidx.compose.animation.ExitTransition.None
+                    ExitTransition.None
                 } else {
                     null
                 }
             }
         ) {
-            RequestAppPermissions()
+            RequestAppPermissions() // Lưu ý: Đảm bảo bạn đã có hàm này ở đâu đó trong project
 
             HomeUI(
                 isDarkMode = isDarkMode,
                 onThemeChange = onThemeChange,
+                viewModel = dashboardViewModel,
                 onLogoutSuccess = {
                     navController.navigate("login_no_splash") {
                         popUpTo("home") {
@@ -114,9 +126,40 @@ fun AppNavigation(
                 },
                 onOpenSeasonStores = { season ->
                     navController.navigate("season_stores/$season")
+                },
+                onNavigateToTodo = {
+                    navController.navigate("todo")
+                },
+                onNavigateToCalendar = {
+                    navController.navigate("calendar")
+                },
+                onNavigateToLaundry = {
+                    navController.navigate("laundry")
                 }
             )
         }
+
+        composable("todo") {
+            TodoScreen(
+                viewModel = dashboardViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("calendar") {
+            CalendarScreen(
+                viewModel = dashboardViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("laundry") {
+            LaundryScreen(
+                viewModel = dashboardViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable("season_stores/{season}") { backStackEntry ->
             val season = backStackEntry.arguments?.getString("season") ?: "autumn"
 
@@ -128,7 +171,6 @@ fun AppNavigation(
             )
         }
 
-
         composable(
             route = "stylist",
             deepLinks = listOf(
@@ -137,6 +179,8 @@ fun AppNavigation(
                 }
             )
         ) {
+            // Chú ý: Ở đây gọi trực tiếp StylistScreen() không truyền ViewModel,
+            // đảm bảo bên trong file StylistScreen.kt bạn đã khai báo viewModel() làm mặc định.
             StylistScreen()
         }
     }

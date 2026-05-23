@@ -1,5 +1,8 @@
 package com.example.dacs3.dashboard.homeui
 
+import androidx.compose.material3.IconButton
+import androidx.lifecycle.viewmodel.compose.viewModel
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +27,12 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.LocalLaundryService
+import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.Event
@@ -65,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.dacs3.connectDB.ClothingItem
 import com.example.dacs3.connectDB.Profile
+import io.github.jan.supabase.gotrue.auth
 import com.example.dacs3.ui.components.EmptyWardrobeState
 import com.example.dacs3.ui.components.ShimmerCard
 import java.util.Calendar
@@ -77,10 +87,14 @@ fun DashboardContent(
     currentProfile: Profile?,
     closetItems: List<ClothingItem>,
     topFavoriteClothes: List<Pair<ClothingItem, Int>> = emptyList(),
-    onLogOotd: (List<String>, String, String) -> Unit = { _, _, _ -> },
+    onLogOotd: (List<String>, List<String>, String?) -> Unit = { _, _, _ -> },
     onNavigateToStylist: () -> Unit = {},
     onNavigateToSeasonStores: (String) -> Unit = {},
-    dashboardViewModel: com.example.dacs3.connectDB.DashboardViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    onMenuClick: () -> Unit = {},
+    onNavigateToTodo: () -> Unit = {},
+    onNavigateToCalendar: () -> Unit = {},
+    onNavigateToLaundry: () -> Unit = {},
+    dashboardViewModel: com.example.dacs3.connectDB.DashboardViewModel = viewModel()
 ) {
     val trips by dashboardViewModel.packingListsHistory.collectAsState()
     val todayDateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
@@ -272,7 +286,7 @@ fun DashboardContent(
                                 selectedOotdShoes?.id
                             )
                             if (ids.isNotEmpty()) {
-                                onLogOotd(ids, selectedEvent, selectedMood)
+                                onLogOotd(ids, listOf(selectedEvent), null)
                                 showOotdSheet = false
                             }
                         },
@@ -536,6 +550,20 @@ fun DashboardContent(
                     .fillMaxWidth()
                     .padding(top = 32.dp, bottom = 24.dp)
             ) {
+                IconButton(
+                    onClick = onMenuClick,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                ) {
+                    Icon(
+                        Icons.Default.Menu,
+                        contentDescription = "Open Drawer Menu",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     val currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
@@ -746,7 +774,7 @@ fun DashboardContent(
                                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                             )
                         }
-                        androidx.compose.material3.IconButton(onClick = {
+                        IconButton(onClick = {
                             showDeclutterWarning = false
                         }) {
                             Icon(
@@ -755,6 +783,275 @@ fun DashboardContent(
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // ─── TIỆN ÍCH TRUY CẬP NHANH PHỤ CẬN ───
+        item {
+            val schedules by dashboardViewModel.outfitSchedules.collectAsState()
+            val todaySchedule = schedules.find { it.schedule.plannedDate == todayDateStr }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 28.dp)
+            ) {
+                Text(
+                    text = "Today's Outfit Plan",
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                if (todaySchedule != null) {
+                    val dirtyItems = todaySchedule.items.filter { it.status.uppercase() in listOf("WORN", "IN_WASH", "NEED_IRON") }
+                    val hasDirtyWarning = dirtyItems.isNotEmpty()
+
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToCalendar() }
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    Icons.Default.Today,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = todaySchedule.outfitName,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "${todaySchedule.items.size} items scheduled for today",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    Icons.Default.KeyboardArrowRight,
+                                    contentDescription = "View Calendar",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
+
+                            if (hasDirtyWarning) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Warning,
+                                            contentDescription = "Warning",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "${dirtyItems.size} scheduled items are dirty/washing!",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val userId = com.example.dacs3.connectDB.supabase.auth.currentUserOrNull()?.id ?: ""
+                                        dashboardViewModel.confirmWornOutfit(
+                                            schedule = todaySchedule.schedule,
+                                            userId = userId,
+                                            onSuccess = {}
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (hasDirtyWarning) MaterialTheme.colorScheme.secondary 
+                                                         else MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Confirm Worn", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = { onNavigateToCalendar() },
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(0.8f)
+                                ) {
+                                    Text("Change", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onNavigateToCalendar() }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Today,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "No outfit planned today",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Plan ahead to save time in the morning.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = { onNavigateToCalendar() },
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Plan", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ─── TÓM TẮT NHANH GIẶT ỦI & VIỆC CẦN LÀM (DÒNG) ───
+        item {
+            val todos by dashboardViewModel.todos.collectAsState()
+            val incompleteTodos = todos.filter { !it.isCompleted }
+            val dirtyClothesCount = closetItems.count { it.status.uppercase() in listOf("WORN", "NEED_IRON") }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 28.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onNavigateToLaundry() }
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Icon(
+                            Icons.Default.LocalLaundryService,
+                            contentDescription = "Laundry Tracker",
+                            tint = if (dirtyClothesCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Laundry",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = if (dirtyClothesCount > 0) "$dirtyClothesCount items to wash" else "All clothes clean ✨",
+                            fontSize = 12.sp,
+                            color = if (dirtyClothesCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onNavigateToTodo() }
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Icon(
+                            Icons.Default.FormatListBulleted,
+                            contentDescription = "Wardrobe To-Do",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "To-Do List",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = if (incompleteTodos.isNotEmpty()) incompleteTodos.first().title else "No tasks today! 💎",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

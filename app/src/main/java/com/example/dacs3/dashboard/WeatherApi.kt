@@ -12,6 +12,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Query
 import java.text.Normalizer
+import java.util.Calendar
 import java.util.Locale
 import java.util.regex.Pattern
 import kotlin.math.roundToInt
@@ -33,6 +34,17 @@ data class WeatherResponse(
 data class MainData(val temp: Float)
 data class WeatherCondition(val main: String, val icon: String)
 
+data class ForecastResponse(
+    val list: List<ForecastItem>
+)
+
+data class ForecastItem(
+    val dt: Long,
+    val main: MainData,
+    val weather: List<WeatherCondition>,
+    val dt_txt: String
+)
+
 // 2. INTERFACE API
 interface OpenWeatherApi {
     @GET("data/2.5/weather")
@@ -49,6 +61,21 @@ interface OpenWeatherApi {
         @Query("appid") apiKey: String,
         @Query("units") units: String = "metric"
     ): WeatherResponse
+
+    @GET("data/2.5/forecast")
+    suspend fun getCurrentForecast(
+        @Query("q") cityName: String,
+        @Query("appid") apiKey: String,
+        @Query("units") units: String = "metric"
+    ): ForecastResponse
+
+    @GET("data/2.5/forecast")
+    suspend fun getForecastByLocation(
+        @Query("lat") lat: Double,
+        @Query("lon") lon: Double,
+        @Query("appid") apiKey: String,
+        @Query("units") units: String = "metric"
+    ): ForecastResponse
 }
 
 // 3. RETROFIT INSTANCE
@@ -77,7 +104,38 @@ class WeatherViewModel : ViewModel() {
     private val _cityName = MutableStateFlow("Loading...")
     val cityName: StateFlow<String> = _cityName
 
+    private val _tomorrowTemperature = MutableStateFlow("--°C")
+    val tomorrowTemperature: StateFlow<String> = _tomorrowTemperature
+
+    private val _tomorrowCondition = MutableStateFlow("Clear")
+    val tomorrowCondition: StateFlow<String> = _tomorrowCondition
+
     private val myApiKey = com.example.dacs3.BuildConfig.WEATHER_API_KEY
+
+    private fun extractTomorrowWeather(forecastResponse: ForecastResponse) {
+        try {
+            val calendar = Calendar.getInstance()
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+            val tomorrowDateStr = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
+
+            // Tìm dự báo vào khoảng 9:00 hoặc 12:00 ngày mai
+            val tomorrowMorningItem = forecastResponse.list.find { it.dt_txt.contains("$tomorrowDateStr 09:00:00") }
+                ?: forecastResponse.list.find { it.dt_txt.contains("$tomorrowDateStr 12:00:00") }
+                ?: forecastResponse.list.find { it.dt_txt.startsWith(tomorrowDateStr) }
+
+            if (tomorrowMorningItem != null) {
+                _tomorrowTemperature.value = "${tomorrowMorningItem.main.temp.roundToInt()}°C"
+                _tomorrowCondition.value = tomorrowMorningItem.weather.firstOrNull()?.main ?: "Clear"
+            } else {
+                _tomorrowTemperature.value = _temperature.value
+                _tomorrowCondition.value = _condition.value
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            _tomorrowTemperature.value = _temperature.value
+            _tomorrowCondition.value = _condition.value
+        }
+    }
 
     fun fetchWeather() {
         viewModelScope.launch {
@@ -96,11 +154,25 @@ class WeatherViewModel : ViewModel() {
                 val cleanName = if (rawName.equals("Turan", ignoreCase = true)) "Da Nang" else rawName.removeAccent()
                 _cityName.value = cleanName
 
+                // Fetch forecast
+                try {
+                    val forecastResponse = RetrofitInstance.api.getCurrentForecast(
+                        cityName = "Da Nang",
+                        apiKey = myApiKey
+                    )
+                    extractTomorrowWeather(forecastResponse)
+                } catch (e: Exception) {
+                    _tomorrowTemperature.value = _temperature.value
+                    _tomorrowCondition.value = _condition.value
+                }
+
             } catch (e: Exception) {
                 _temperature.value = "26°C"
                 _condition.value = "Clear"
                 _isNight.value = false
                 _cityName.value = "Da Nang"
+                _tomorrowTemperature.value = "26°C"
+                _tomorrowCondition.value = "Clear"
             }
         }
     }
@@ -138,6 +210,19 @@ class WeatherViewModel : ViewModel() {
                     }
                 } catch (e: Exception) {
                     _cityName.value = response.name.removeAccent()
+                }
+
+                // Fetch forecast
+                try {
+                    val forecastResponse = RetrofitInstance.api.getForecastByLocation(
+                        lat = lat,
+                        lon = lon,
+                        apiKey = myApiKey
+                    )
+                    extractTomorrowWeather(forecastResponse)
+                } catch (e: Exception) {
+                    _tomorrowTemperature.value = _temperature.value
+                    _tomorrowCondition.value = _condition.value
                 }
 
             } catch (e: Exception) {

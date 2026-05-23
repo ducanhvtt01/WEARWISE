@@ -1,5 +1,7 @@
 package com.example.dacs3.login.ui
 
+import androidx.compose.foundation.BorderStroke
+
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -341,7 +343,7 @@ fun SocialButton(
             .size(54.dp)
             .clip(CircleShape)
             .clickable { onClick() },
-        border = androidx.compose.foundation.BorderStroke(1.dp, SilverMist.copy(alpha = 0.2f)),
+        border = BorderStroke(1.dp, SilverMist.copy(alpha = 0.2f)),
         colors = CardDefaults.outlinedCardColors(containerColor = Color.White)
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
