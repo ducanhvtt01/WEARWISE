@@ -317,7 +317,7 @@ fun TodoScreen(
                 .padding(bottom = 24.dp, end = 24.dp)
                 .shadow(8.dp, CircleShape)
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Add Task", tint = Color.White)
+            Icon(Icons.Filled.Add, contentDescription = "Add Task", tint = MaterialTheme.colorScheme.onPrimary)
         }
     }
 

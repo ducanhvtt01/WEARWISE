@@ -1101,15 +1101,15 @@ fun StylistScreen(
                                 ) {
                                     if (isSavingList) {
                                         CircularProgressIndicator(
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onPrimary,
                                             modifier = Modifier.size(24.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Saving Checklist...", fontWeight = FontWeight.Bold)
+                                        Text("Saving Checklist...", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                                     } else {
-                                        Icon(Icons.Filled.Save, null, tint = Color.White)
+                                        Icon(Icons.Filled.Save, null, tint = MaterialTheme.colorScheme.onPrimary)
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Save Checklist & Schedule Departure", fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text("Save Checklist & Schedule Departure", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                                     }
                                 }
                             }
@@ -1934,7 +1934,7 @@ fun ChatBubble(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Filled.Checkroom, null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Filled.Checkroom, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Try on Canvas", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
