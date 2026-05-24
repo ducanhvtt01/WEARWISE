@@ -92,39 +92,23 @@ class DashboardViewModel : ViewModel() {
 
                 // 🔄 AUTO-RESET COOLDOWN: Tự động đưa đồ dơ/đang giặt về AVAILABLE sau 3 ngày
                 val todayDate = java.util.Date()
-                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
                 val updatedClothesList = clothes.map { item ->
-                    if (item.status.uppercase() in listOf("WORN", "IN_WASH")) {
-                        val lastWorn = item.lastWornDate
-                        if (lastWorn != null) {
+                    val cooledDownItem = WardrobeHelper.processCooldown(item, todayDate)
+                    if (cooledDownItem != null) {
+                        // Cập nhật trạng thái mới lên Supabase ngầm
+                        viewModelScope.launch(Dispatchers.IO) {
                             try {
-                                val refDate = formatter.parse(lastWorn.substring(0, 10))
-                                if (refDate != null) {
-                                    val diffInMillies = kotlin.math.abs(todayDate.time - refDate.time)
-                                    val diffInDays = java.util.concurrent.TimeUnit.DAYS.convert(
-                                        diffInMillies,
-                                        java.util.concurrent.TimeUnit.MILLISECONDS
-                                    )
-                                    if (diffInDays >= 3) {
-                                        // Cập nhật trạng thái mới lên Supabase ngầm
-                                        viewModelScope.launch(Dispatchers.IO) {
-                                            try {
-                                                supabase.from("clothes").update(mapOf("status" to "AVAILABLE")) {
-                                                    filter { eq("id", item.id ?: "") }
-                                                }
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                            }
-                                        }
-                                        return@map item.copy(status = "AVAILABLE")
-                                    }
+                                supabase.from("clothes").update(mapOf("status" to "AVAILABLE")) {
+                                    filter { eq("id", item.id ?: "") }
                                 }
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                         }
+                        cooledDownItem
+                    } else {
+                        item
                     }
-                    item
                 }
                 _clothingItems.value = updatedClothesList
 

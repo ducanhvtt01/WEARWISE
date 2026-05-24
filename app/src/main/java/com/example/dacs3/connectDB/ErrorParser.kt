@@ -4,10 +4,6 @@ object ErrorParser {
     fun parse(throwable: Throwable): String {
         val className = throwable::class.qualifiedName ?: throwable::class.simpleName ?: ""
         val message = throwable.message ?: ""
-        
-        // Ghi log lỗi để debug
-        println("Parsing error: Class=$className, Message=$message")
-        throwable.printStackTrace()
 
         // 1. Kiểm tra lỗi mất kết nối mạng hoặc timeout
         if (className.contains("UnknownHostException", ignoreCase = true) ||
