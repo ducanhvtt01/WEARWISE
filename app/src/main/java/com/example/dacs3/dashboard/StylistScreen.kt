@@ -221,6 +221,7 @@ fun StylistScreen(
                     6. For every outfit recommendation, YOU MUST include ALL selected item IDs at the very end of your message in this exact format: [OUTFIT_IDS: id1, id2, id3, ...]
                     7. Do NOT include the [OUTFIT_IDS: ...] tag if you are not recommending specific items from the closet.
                     8. NEVER use "N/A" inside the tag. If an item is missing from the closet, do not suggest it.
+                    9. CRITICAL: When describing outfit items in your text response, ONLY show the item name (e.g., "Beige Camp Collar Shirt"). NEVER display or mention the item's ID in your visible text response. IDs must ONLY appear inside the [OUTFIT_IDS: ...] tag at the end.
                 """.trimIndent()
                 )
             }
