@@ -183,14 +183,28 @@ class DashboardViewModel : ViewModel() {
     fun addClothing(item: ClothingItem, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Yêu cầu Supabase trả về item đã có ID thật (dùng cho Undo khôi phục đồ)
-                val savedItem = supabase.from("clothes").insert(item) {
-                    select()
-                }.decodeSingle<ClothingItem>()
+                val savedItem = if (item.id != null) {
+                    // Nếu đã có ID, thực hiện khôi phục (Undo) bằng cách cập nhật status từ "unactive" về status gốc của item
+                    val targetStatus = if (item.status == "unactive") "active" else item.status
+                    val restoredItem = item.copy(status = targetStatus)
+                    supabase.from("clothes").update(restoredItem) {
+                        filter { eq("id", item.id) }
+                    }
+                    restoredItem
+                } else {
+                    // Yêu cầu Supabase trả về item đã có ID thật
+                    supabase.from("clothes").insert(item) {
+                        select()
+                    }.decodeSingle<ClothingItem>()
+                }
 
                 // Cập nhật lại UI List
                 val currentList = _clothingItems.value.toMutableList()
-                currentList.add(0, savedItem)
+                if (item.id != null) {
+                    currentList.add(savedItem) // Phục hồi ở cuối tủ đồ
+                } else {
+                    currentList.add(0, savedItem) // Thêm mới ở đầu tủ đồ
+                }
                 _clothingItems.value = currentList
 
                 launch(Dispatchers.Main) { onSuccess() }
@@ -220,16 +234,17 @@ class DashboardViewModel : ViewModel() {
     }
 
     fun deleteClothingItem(item: ClothingItem) {
+        // Cập nhật UI ngay lập tức (Optimistic Update) để hiệu ứng vuốt xóa cực kỳ mượt mà
+        val currentList = _clothingItems.value.toMutableList()
+        currentList.remove(item)
+        _clothingItems.value = currentList
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 item.id?.let { itemId ->
                     // THỰC HIỆN XÓA MỀM (Soft Delete): Cập nhật status thành "unactive"
                     val updateMap = mapOf("status" to "unactive")
                     supabase.from("clothes").update(updateMap) { filter { eq("id", itemId) } }
-                    // Cập nhật UI
-                    val currentList = _clothingItems.value.toMutableList()
-                    currentList.remove(item)
-                    _clothingItems.value = currentList
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

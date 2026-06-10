@@ -35,9 +35,14 @@ fun AppNavigation(
     val dashboardViewModel: DashboardViewModel = viewModel()
 
     LaunchedEffect(Unit) {
-        val session = supabase.auth.currentSessionOrNull()
-        if (session != null) {
-            checkProfileAndNavigate(session.user?.id, navController)
+        supabase.auth.sessionStatus.collect { status ->
+            if (status is io.github.jan.supabase.gotrue.SessionStatus.Authenticated) {
+                // Chỉ tự động điều hướng nếu người dùng đang ở màn hình login
+                val currentRoute = navController.currentBackStackEntry?.destination?.route
+                if (currentRoute == "login" || currentRoute == "login_no_splash" || currentRoute == null) {
+                    checkProfileAndNavigate(status.session.user?.id, navController, popUpRoute = currentRoute ?: "login")
+                }
+            }
         }
     }
 

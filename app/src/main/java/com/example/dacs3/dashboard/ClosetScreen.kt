@@ -158,11 +158,15 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                     scope.launch {
                         val result = snackbarHostState.showSnackbar(
                             "Deleted ${itemToRemove.clothes_name}",
-                            "Undo", // Nếu có undo thì bạn phải gọi lại viewModel.addClothing() nhé
+                            "Undo",
                             duration = SnackbarDuration.Short
                         )
                         if (result == SnackbarResult.ActionPerformed) {
-                            viewModel.addClothing(itemToRemove) {}
+                            viewModel.addClothing(itemToRemove) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Restored ${itemToRemove.clothes_name}")
+                                }
+                            }
                         }
                     }
                 }
@@ -807,25 +811,44 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                 }
 
                 items(items = filteredItems, key = { it.id ?: "" }) { item ->
+                    var dismissStateNullable: SwipeToDismissBoxState? = null
+                    var hasTriggeredDelete by remember { mutableStateOf(false) }
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = { dismissValue ->
                             if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                                // Gọi xóa từ DB khi vuốt
-                                viewModel.deleteClothingItem(item)
-                                scope.launch {
-                                    val result = snackbarHostState.showSnackbar(
-                                        "Deleted ${item.clothes_name}",
-                                        "Undo",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                    if (result == SnackbarResult.ActionPerformed) {
-                                        viewModel.addClothing(item) {}
+                                if (!hasTriggeredDelete) {
+                                    hasTriggeredDelete = true
+                                    // Gọi xóa từ DB khi vuốt
+                                    viewModel.deleteClothingItem(item)
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            "Deleted ${item.clothes_name}",
+                                            "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            dismissStateNullable?.snapTo(SwipeToDismissBoxValue.Settled)
+                                            hasTriggeredDelete = false
+                                            viewModel.addClothing(item) {
+                                                scope.launch {
+                                                    snackbarHostState.showSnackbar("Restored ${item.clothes_name}")
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 true
                             } else false
                         }
                     )
+                    dismissStateNullable = dismissState
+
+                    LaunchedEffect(item.id) {
+                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+                            dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+                        }
+                        hasTriggeredDelete = false
+                    }
 
                     SwipeToDismissBox(
                         state = dismissState,
