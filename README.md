@@ -12,4 +12,4 @@ Mục tiêu của WearWise là mang đến một giải pháp hỗ trợ ngườ
 - Ducanhvvt01
 - CillTech
   
-[Tải xuống tại đây]( https://drive.google.com/file/d/1m1IyEwBhGkj1h8lyU7BOqNGYMJ8ygHpo/view)
+[Tải xuống tại đây](https://drive.google.com/file/d/1SDiEGz506lx2BnzLHRoVN-el-_pO11aC/view)
