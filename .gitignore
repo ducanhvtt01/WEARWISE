@@ -12,3 +12,4 @@
 .externalNativeBuild
 .cxx
 .kotlin/sessions/kotlin-compiler-10374019398331600460.salive
+local.properties

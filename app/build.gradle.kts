@@ -13,6 +13,9 @@ if (localPropertiesFile.exists()) {
 }
 val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
 val weatherApiKey = localProperties.getProperty("WEATHER_API_KEY") ?: ""
+val googleApiKey = localProperties.getProperty("GOOGLE_MAPS_KEY") ?: ""
+val supabaseUrl = localProperties.getProperty("SUPABASE_URL") ?: ""
+val supabaseKey = localProperties.getProperty("SUPABASE_KEY") ?: ""
 
 android {
     namespace = "com.example.dacs3"
@@ -28,6 +31,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
         buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
+        buildConfigField("String", "GOOGLE_MAPS_KEY", "\"$googleApiKey\"")
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+        manifestPlaceholders["GOOGLE_MAPS_KEY"] = googleApiKey
     }
 
     buildTypes {

@@ -4,5 +4,4 @@
     <string name="title_activity_splash_screen">SplashScreen</string>
     <string name="title_activity_register_sheet">RegisterSheet</string>
     <string name="title_activity_sign_up_sheet_content">SignUpSheetContent</string>
-    <string name="google_maps_key">AIzaSyAUpSFiId0rHuSVtogejH_rlQzjzZA7ZJs</string>
 </resources>
