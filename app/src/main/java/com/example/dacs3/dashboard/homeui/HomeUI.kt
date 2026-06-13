@@ -60,6 +60,7 @@ import com.example.dacs3.connectDB.supabase
 import com.example.dacs3.dashboard.ClosetScreen
 import com.example.dacs3.dashboard.ProfileScreen
 import com.example.dacs3.dashboard.StylistScreen
+import dev.jeziellago.compose.markdowntext.MarkdownText
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
@@ -659,8 +660,8 @@ fun HomeUI(
                                             )
                                         }
                                         Spacer(modifier = Modifier.height(8.dp))
-                                        Text(
-                                            text = antiImpulseAdvice!!,
+                                        MarkdownText(
+                                            markdown = antiImpulseAdvice!!,
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSecondaryContainer
                                         )
