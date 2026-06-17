@@ -100,6 +100,29 @@ fun DashboardContent(
     val todayDateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
     val activeTripReturningToday = trips.find { it.list.returnDate == todayDateStr }
 
+    val weatherViewModel: com.example.dacs3.dashboard.WeatherViewModel = viewModel()
+    val tempString by weatherViewModel.temperature.collectAsState()
+    val tempValue = remember(tempString) {
+        tempString.replace(Regex("[^0-9-]"), "").toIntOrNull()
+    }
+    val currentMonth = remember { Calendar.getInstance().get(Calendar.MONTH) + 1 }
+    val resolvedSeason = remember(currentMonth) {
+        when (currentMonth) {
+            in 3..5 -> "spring"
+            in 6..8 -> "summer"
+            in 9..11 -> "autumn"
+            else -> "winter"
+        }
+    }
+    val seasonDisplayName = remember(resolvedSeason) {
+        when (resolvedSeason) {
+            "spring" -> "Spring"
+            "summer" -> "Summer"
+            "autumn" -> "Autumn"
+            else -> "Winter"
+        }
+    }
+
     var selectedEvent by remember { mutableStateOf("University") }
     var selectedMood by remember { mutableStateOf("Confident") }
 
@@ -459,7 +482,7 @@ fun DashboardContent(
                     .padding(horizontal = 24.dp, vertical = 16.dp)
             ) {
                 Text(
-                    text = "Shop Autumn Collection",
+                    text = "Shop $seasonDisplayName Collection",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary
@@ -478,8 +501,14 @@ fun DashboardContent(
                 Button(
                     onClick = {
                         showShopSheet = false
+                        val keyword = "${seasonDisplayName.lowercase()} fashion"
+                        val encodedKeyword = try {
+                            java.net.URLEncoder.encode(keyword, "UTF-8")
+                        } catch (e: Exception) {
+                            "th%E1%BB%9Di%20trang%20m%C3%B9a%20thu"
+                        }
                         uriHandler.openUri(
-                            "https://shopee.vn/search?keyword=th%E1%BB%9Di%20trang%20m%C3%B9a%20thu"
+                            "https://shopee.vn/search?keyword=$encodedKeyword"
                         )
                     },
                     modifier = Modifier
@@ -511,7 +540,7 @@ fun DashboardContent(
                 OutlinedButton(
                     onClick = {
                         showShopSheet = false
-                        onNavigateToSeasonStores("autumn")
+                        onNavigateToSeasonStores(resolvedSeason)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -625,7 +654,7 @@ fun DashboardContent(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         Text(
-                            "Autumn Collection '24",
+                            text = "$seasonDisplayName Collection ${if (tempValue != null) "($tempString)" else ""}",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary,
