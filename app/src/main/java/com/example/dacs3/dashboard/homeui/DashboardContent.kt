@@ -4,6 +4,7 @@ import androidx.compose.material3.IconButton
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
@@ -123,11 +125,6 @@ fun DashboardContent(
         }
     }
 
-    var selectedEvent by remember { mutableStateOf("University") }
-    var selectedMood by remember { mutableStateOf("Confident") }
-
-    var showMoodSheet by remember { mutableStateOf(false) }
-    var showEventSheet by remember { mutableStateOf(false) }
     var showShopSheet by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -140,18 +137,6 @@ fun DashboardContent(
 
     val haptic = LocalHapticFeedback.current
     val uriHandler = LocalUriHandler.current
-
-    val eventCategories = mapOf(
-        "Academic & Work" to listOf("University", "Presentation", "Library", "Internship"),
-        "Social & Dating" to listOf("Coffee Date", "Dinner Date", "Party", "First Date"),
-        "Active & Trip" to listOf("Gym Session", "Weekend Trip", "Hiking", "Beach Day")
-    )
-
-    val moodCategories = mapOf(
-        "Energetic" to listOf("Confident", "Productive", "Bold", "Creative"),
-        "Relaxed" to listOf("Chill", "Cozy", "Peaceful", "Effortless"),
-        "Emotional" to listOf("Elegant", "Romantic", "Nostalgic", "Edgy")
-    )
 
     // Tính toán số lượng đồ chưa mặc > 3 tháng
     val deadItemsCount = remember(closetItems) {
@@ -309,7 +294,7 @@ fun DashboardContent(
                                 selectedOotdShoes?.id
                             )
                             if (ids.isNotEmpty()) {
-                                onLogOotd(ids, listOf(selectedEvent), null)
+                                onLogOotd(ids, emptyList(), null)
                                 showOotdSheet = false
                             }
                         },
@@ -319,153 +304,6 @@ fun DashboardContent(
                     }
                     Spacer(modifier = Modifier.height(40.dp))
                 }
-            }
-        }
-    }
-
-    if (showEventSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showEventSheet = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.background
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                item {
-                    Text(
-                        "Select your occasion",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-                eventCategories.forEach { (category, events) ->
-                    item {
-                        Text(
-                            category.uppercase(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                    item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.padding(bottom = 24.dp)
-                        ) {
-                            events.chunked(2).forEach { rowEvents ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    rowEvents.forEach { event ->
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(if (selectedEvent == event) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
-                                                .clickable {
-                                                    selectedEvent = event
-                                                    showEventSheet = false
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                }
-                                                .padding(vertical = 12.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                event,
-                                                color = if (selectedEvent == event) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                                                fontWeight = if (selectedEvent == event) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 13.sp
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                item { Spacer(modifier = Modifier.height(40.dp)) }
-            }
-        }
-    }
-
-    if (showMoodSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showMoodSheet = false },
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.background
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-            ) {
-                item {
-                    Text(
-                        "Select your feeling!",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                moodCategories.forEach { (category, moods) ->
-                    item {
-                        Text(
-                            category.uppercase(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                    item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.padding(bottom = 24.dp)
-                        ) {
-                            moods.chunked(2).forEach { rowMoods ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    rowMoods.forEach { mood ->
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(if (selectedMood == mood) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
-                                                .clickable {
-                                                    selectedMood = mood
-                                                    showMoodSheet = false
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                }
-                                                .padding(vertical = 12.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                mood,
-                                                color = if (selectedMood == mood) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                                                fontWeight = if (selectedMood == mood) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 13.sp
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                item { Spacer(modifier = Modifier.height(40.dp)) }
             }
         }
     }
@@ -628,73 +466,87 @@ fun DashboardContent(
         item {
             Card(
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 28.dp)
                     .shadow(
                         12.dp,
                         RoundedCornerShape(24.dp),
-                        spotColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     )
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp)
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f)
+                                )
+                            )
+                        )
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "SPONSORED",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.secondary,
-                            letterSpacing = 1.5.sp,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        Text(
-                            text = "$seasonDisplayName Collection ${if (tempValue != null) "($tempString)" else ""}",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        Text(
-                            "Get 20% off exclusively via WEARWISE.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
-                        Button(
-                            onClick = { showShopSheet = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
-                            modifier = Modifier.height(36.dp)
-                        ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Shop Now",
-                                fontSize = 13.sp,
+                                "SPONSORED",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f),
+                                letterSpacing = 1.5.sp,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            Text(
+                                text = "$seasonDisplayName Collection ${if (tempValue != null) "($tempString)" else ""}",
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            Text(
+                                "Get 20% off exclusively via WEARWISE.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            Button(
+                                onClick = { showShopSheet = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                modifier = Modifier.height(36.dp)
+                            ) {
+                                Text(
+                                    "Shop Now",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.background else Color.White
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
+                        ) {
+                            Icon(
+                                Icons.Outlined.LocalMall,
+                                "Product",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(36.dp)
                             )
                         }
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(80.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
-                    ) {
-                        Icon(
-                            Icons.Outlined.LocalMall,
-                            "Product",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(36.dp)
-                        )
                     }
                 }
             }
@@ -702,10 +554,19 @@ fun DashboardContent(
 
         if (activeTripReturningToday != null) {
             item {
+                val isDark = isSystemInDarkTheme()
+                val warnCardBg = if (isDark) Color(0xFF2C1414) else Color(0xFFFFEBEE)
+                val warnCardBorder = if (isDark) Color(0xFF5A1F1F) else Color(0xFFEF9A9A)
+                val warnIconBg = if (isDark) Color(0xFF4A1C1C) else Color(0xFFFFCDD2)
+                val warnIconTint = if (isDark) Color(0xFFEF5350) else Color(0xFFD32F2F)
+                val warnTitleColor = if (isDark) Color(0xFFFF8A80) else Color(0xFFC62828)
+                val warnBodyColor = if (isDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C)
+                val warnBtnColor = if (isDark) Color(0xFFE53935) else Color(0xFFD32F2F)
+
                 Card(
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
-                    border = BorderStroke(1.dp, Color(0xFFEF9A9A)),
+                    colors = CardDefaults.cardColors(containerColor = warnCardBg),
+                    border = BorderStroke(1.dp, warnCardBorder),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 28.dp)
@@ -718,13 +579,13 @@ fun DashboardContent(
                             modifier = Modifier
                                 .size(50.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFFFCDD2)),
+                                .background(warnIconBg),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Filled.Warning, 
                                 null, 
-                                tint = Color(0xFFD32F2F),
+                                tint = warnIconTint,
                                 modifier = Modifier.size(26.dp)
                             )
                         }
@@ -734,7 +595,7 @@ fun DashboardContent(
                                 text = "CHECK OUT TODAY! 🚨",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFFC62828),
+                                color = warnTitleColor,
                                 letterSpacing = 1.sp,
                                 modifier = Modifier.padding(bottom = 4.dp)
                             )
@@ -742,7 +603,7 @@ fun DashboardContent(
                                 text = "Leaving ${activeTripReturningToday.list.destination} today? Verify your packing checklist so you don't leave anything behind!",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFFB71C1C)
+                                color = warnBodyColor
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Button(
@@ -750,7 +611,7 @@ fun DashboardContent(
                                     dashboardViewModel.showTravelHistoryTrigger = true
                                     onNavigateToStylist()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                                colors = ButtonDefaults.buttonColors(containerColor = warnBtnColor),
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                                 modifier = Modifier.height(34.dp)
@@ -1086,81 +947,7 @@ fun DashboardContent(
             }
         }
 
-        item {
-            Column(modifier = Modifier.padding(bottom = 28.dp)) {
-                Text(
-                    "What's the plan today?",
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                FilterChip(
-                    selected = true,
-                    onClick = { showEventSheet = true },
-                    label = { Text("Event: $selectedEvent", fontWeight = FontWeight.Medium) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Outlined.Event,
-                            null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Filled.KeyboardArrowDown,
-                            null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
-                        selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    shape = RoundedCornerShape(12.dp), border = null
-                )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(modifier = Modifier.padding(bottom = 5.dp)) {
-                    Text(
-                        "How do you feel today?",
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    FilterChip(
-                        selected = true,
-                        onClick = { showMoodSheet = true },
-                        label = { Text("Mood: $selectedMood", fontWeight = FontWeight.Medium) },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Outlined.Mood,
-                                null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        trailingIcon = {
-                            Icon(
-                                Icons.Filled.KeyboardArrowDown,
-                                null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
-                            selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        shape = RoundedCornerShape(12.dp), border = null
-                    )
-                }
-            }
-        }
 
         item {
             Card(

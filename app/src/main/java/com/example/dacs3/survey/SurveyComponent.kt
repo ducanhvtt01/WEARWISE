@@ -1,5 +1,6 @@
 package com.example.dacs3.survey
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,14 +57,14 @@ fun SingleChoiceChip(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
             .border(
                 1.dp,
                 if (selected) Color.Transparent else MaterialTheme.colorScheme.onSurfaceVariant.copy(
                     alpha = 0.3f
                 ),
-                RoundedCornerShape(12.dp)
+                RoundedCornerShape(20.dp)
             )
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -118,13 +120,35 @@ fun MultiChoiceChip(text: String, selected: Boolean, onClick: () -> Unit) {
 fun DropdownSizeSelector(selected: String, options: List<String>, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton(
+        OutlinedCard(
             onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
         ) {
-            Text(text = if (selected.isEmpty()) "Select" else selected)
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (selected.isEmpty()) "Select size" else selected,
+                    color = if (selected.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
         DropdownMenu(
             expanded = expanded,

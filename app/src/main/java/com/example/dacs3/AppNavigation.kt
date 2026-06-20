@@ -10,6 +10,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navDeepLink
+import androidx.compose.foundation.layout.fillMaxSize
 import com.example.dacs3.connectDB.DashboardViewModel
 import com.example.dacs3.connectDB.Profile
 import com.example.dacs3.connectDB.supabase
@@ -17,6 +18,10 @@ import com.example.dacs3.dashboard.CalendarScreen
 import com.example.dacs3.dashboard.LaundryScreen
 import com.example.dacs3.dashboard.TodoScreen
 import com.example.dacs3.dashboard.StylistScreen
+import com.example.dacs3.dashboard.OutfitSchedulerScreen
+import com.example.dacs3.dashboard.OutfitSwiperScreen
+import com.example.dacs3.dashboard.ClosetInsightsScreen
+import com.example.dacs3.dashboard.StyleStudioScreen
 import com.example.dacs3.dashboard.homeui.HomeUI
 import com.example.dacs3.login.LoginScreen
 import com.example.dacs3.survey.SurveyMasterScreen
@@ -46,14 +51,18 @@ fun AppNavigation(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = "login",
-        enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
-        exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) },
-        popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
-        popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) }
+    androidx.compose.material3.Surface(
+        modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+        color = androidx.compose.material3.MaterialTheme.colorScheme.background
     ) {
+        NavHost(
+            navController = navController,
+            startDestination = "login",
+            enterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
+            exitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) },
+            popEnterTransition = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)) },
+            popExitTransition = { androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) }
+        ) {
         composable("login") {
             LoginScreen(
                 showSplash = true,
@@ -140,6 +149,18 @@ fun AppNavigation(
                 },
                 onNavigateToLaundry = {
                     navController.navigate("laundry")
+                },
+                onNavigateToScheduler = {
+                    navController.navigate("outfit_scheduler")
+                },
+                onNavigateToInsights = {
+                    navController.navigate("closet_insights")
+                },
+                onNavigateToSwiper = {
+                    navController.navigate("outfit_swiper")
+                },
+                onNavigateToStyleStudio = {
+                    navController.navigate("style_studio")
                 }
             )
         }
@@ -188,6 +209,35 @@ fun AppNavigation(
             // đảm bảo bên trong file StylistScreen.kt bạn đã khai báo viewModel() làm mặc định.
             StylistScreen()
         }
+
+        composable("outfit_scheduler") {
+            OutfitSchedulerScreen(
+                viewModel = dashboardViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("outfit_swiper") {
+            OutfitSwiperScreen(
+                viewModel = dashboardViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("style_studio") {
+            StyleStudioScreen(
+                viewModel = dashboardViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("closet_insights") {
+            ClosetInsightsScreen(
+                viewModel = dashboardViewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+    }
     }
 }
 

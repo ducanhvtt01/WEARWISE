@@ -48,116 +48,136 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
 
         // --- NAME FIELD ---
         Text("FULL NAME", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MidnightBlue.copy(alpha = 0.6f), letterSpacing = 1.5.sp)
-        TextField(
+        OutlinedTextField(
             value = name, onValueChange = { name = it },
-            placeholder = { Text("Your name", color = SilverMist, fontSize = 14.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = MidnightBlue,
-                unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
+            placeholder = { Text("Your name", color = SilverMist.copy(alpha = 0.6f), fontSize = 14.sp) },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White.copy(alpha = 0.6f),
+                focusedBorderColor = MidnightBlue,
+                unfocusedBorderColor = SilverMist.copy(alpha = 0.4f),
                 cursorColor = MidnightBlue,
                 focusedTextColor = MidnightBlue,
-                unfocusedTextColor = MidnightBlue
-            ),
-            leadingIcon = {Icon(imageVector = Icons.Default.Person, contentDescription = "")},
-            trailingIcon = { IconButton(onClick = {
-                name = ""
-            }) { Icon(imageVector = Icons.Default.Close, contentDescription = "")} },
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // --- EMAIL FIELD ---
-        Text("EMAIL ADDRESS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MidnightBlue.copy(alpha = 0.6f), letterSpacing = 1.5.sp)
-        TextField(
-            value = email, onValueChange = { email = it },
-            placeholder = { Text("name@essence.com", color = SilverMist, fontSize = 14.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = MidnightBlue,
-                unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
-                cursorColor = MidnightBlue,
-                focusedTextColor = MidnightBlue,
-                unfocusedTextColor = MidnightBlue
+                unfocusedTextColor = MidnightBlue,
+                focusedLeadingIconColor = MidnightBlue,
+                unfocusedLeadingIconColor = SilverMist,
+                focusedTrailingIconColor = MidnightBlue,
+                unfocusedTrailingIconColor = SilverMist
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Person, contentDescription = "")},
             trailingIcon = {
-                IconButton(onClick = {
-                    email = ""
-                }) { Icon(imageVector = Icons.Default.Close, contentDescription = "")}
+                if (name.isNotEmpty()) {
+                    IconButton(onClick = { name = "" }) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "")
+                    }
+                }
             },
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // --- EMAIL FIELD ---
+        Text("EMAIL ADDRESS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MidnightBlue.copy(alpha = 0.6f), letterSpacing = 1.5.sp)
+        OutlinedTextField(
+            value = email, onValueChange = { email = it },
+            placeholder = { Text("name@essence.com", color = SilverMist.copy(alpha = 0.6f), fontSize = 14.sp) },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White.copy(alpha = 0.6f),
+                focusedBorderColor = MidnightBlue,
+                unfocusedBorderColor = SilverMist.copy(alpha = 0.4f),
+                cursorColor = MidnightBlue,
+                focusedTextColor = MidnightBlue,
+                unfocusedTextColor = MidnightBlue,
+                focusedLeadingIconColor = MidnightBlue,
+                unfocusedLeadingIconColor = SilverMist,
+                focusedTrailingIconColor = MidnightBlue,
+                unfocusedTrailingIconColor = SilverMist
+            ),
+            leadingIcon = {Icon(imageVector = Icons.Default.Person, contentDescription = "")},
+            trailingIcon = {
+                if (email.isNotEmpty()) {
+                    IconButton(onClick = { email = "" }) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "")
+                    }
+                }
+            },
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         // --- PASSWORD FIELD ---
         Text("PASSWORD", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MidnightBlue.copy(alpha = 0.6f), letterSpacing = 1.5.sp)
-        TextField(
+        OutlinedTextField(
             value = password, onValueChange = { password = it },
-            placeholder = { Text("••••••••", color = SilverMist, fontSize = 14.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = MidnightBlue,
-                unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
+            placeholder = { Text("••••••••", color = SilverMist.copy(alpha = 0.6f), fontSize = 14.sp) },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White.copy(alpha = 0.6f),
+                focusedBorderColor = MidnightBlue,
+                unfocusedBorderColor = SilverMist.copy(alpha = 0.4f),
                 cursorColor = MidnightBlue,
                 focusedTextColor = MidnightBlue,
-                unfocusedTextColor = MidnightBlue
+                unfocusedTextColor = MidnightBlue,
+                focusedLeadingIconColor = MidnightBlue,
+                unfocusedLeadingIconColor = SilverMist,
+                focusedTrailingIconColor = MidnightBlue,
+                unfocusedTrailingIconColor = SilverMist
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Lock, contentDescription = "")},
             trailingIcon = {
                 IconButton(onClick = {isVisibled = !isVisibled}) {
-                    when (isVisibled) {
-                        false -> Icon(imageVector = Icons.Default.Visibility, contentDescription = "")
-                        true -> Icon(imageVector = Icons.Default.VisibilityOff, contentDescription = "")
-                    } }
-
+                    Icon(
+                        imageVector = if (isVisibled) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = ""
+                    )
+                }
             },
-            visualTransformation = when (isVisibled) {
-                false -> PasswordVisualTransformation()
-                true -> VisualTransformation.None
-            },
+            visualTransformation = if (isVisibled) VisualTransformation.None else PasswordVisualTransformation(),
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // 2. --- CONFIRM PASSWORD FIELD ---
         Text("CONFIRM PASSWORD", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MidnightBlue.copy(alpha = 0.6f), letterSpacing = 1.5.sp)
-        TextField(
+        OutlinedTextField(
             value = confirmPassword,
             onValueChange = { confirmPassword = it },
-            placeholder = { Text("••••••••", color = SilverMist, fontSize = 14.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = MidnightBlue,
-                unfocusedIndicatorColor = SilverMist.copy(alpha = 0.3f),
+            placeholder = { Text("••••••••", color = SilverMist.copy(alpha = 0.6f), fontSize = 14.sp) },
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White.copy(alpha = 0.6f),
+                focusedBorderColor = MidnightBlue,
+                unfocusedBorderColor = SilverMist.copy(alpha = 0.4f),
                 cursorColor = MidnightBlue,
                 focusedTextColor = MidnightBlue,
-                unfocusedTextColor = MidnightBlue
+                unfocusedTextColor = MidnightBlue,
+                focusedLeadingIconColor = MidnightBlue,
+                unfocusedLeadingIconColor = SilverMist,
+                focusedTrailingIconColor = MidnightBlue,
+                unfocusedTrailingIconColor = SilverMist
             ),
             leadingIcon = {Icon(imageVector = Icons.Default.Lock, contentDescription = "")},
             trailingIcon = {
                 IconButton(onClick = {isConfirmVisibled = !isConfirmVisibled}) {
-                    when (isConfirmVisibled) {
-                        false -> Icon(imageVector = Icons.Default.Visibility, contentDescription = "")
-                        true -> Icon(imageVector = Icons.Default.VisibilityOff, contentDescription = "")
-                    } }
-
+                    Icon(
+                        imageVector = if (isConfirmVisibled) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        contentDescription = ""
+                    )
+                }
             },
-            visualTransformation = when (isConfirmVisibled) {
-                false -> PasswordVisualTransformation()
-                true -> VisualTransformation.None
-            },
+            visualTransformation = if (isConfirmVisibled) VisualTransformation.None else PasswordVisualTransformation(),
             singleLine = true
         )
 
@@ -211,7 +231,7 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                 }
             },
             modifier = Modifier.fillMaxWidth().height(54.dp),
-            shape = RoundedCornerShape(6.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MidnightBlue, contentColor = OffWhite)
         ) {
             Text("CREATE ACCOUNT", letterSpacing = 2.sp, fontWeight = FontWeight.Light)

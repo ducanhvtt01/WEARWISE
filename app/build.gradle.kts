@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.datastore.core)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.compose.foundation.layout)
     testImplementation(libs.junit)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("io.mockk:mockk:1.13.10")
@@ -131,4 +132,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-maps:19.2.0")
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
-    }
+
+    // Google ML Kit Subject Segmentation
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+}

@@ -8,6 +8,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -68,7 +70,13 @@ import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit = {}) {
+fun ClosetScreen(
+    viewModel: DashboardViewModel,
+    onNavigateToStylist: () -> Unit = {},
+    onNavigateToScheduler: () -> Unit = {},
+    onNavigateToInsights: () -> Unit = {},
+    onNavigateToStyleStudio: () -> Unit = {}
+) {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = listOf("All", "Top", "Bottom", "Outerwear", "Shoes", "Accessories")
 
@@ -452,12 +460,21 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                             .height(54.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.secondary
+                                brush = if (isSystemInDarkTheme()) {
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color(0xFF2C3E50), // MidnightBlue
+                                            Color(0xFF1A237E)  // Dark Indigo
+                                        )
                                     )
-                                ),
+                                } else {
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary
+                                        )
+                                    )
+                                },
                                 alpha = if (isEnabled) 1f else 0.5f
                             )
                             .clickable(enabled = isEnabled) {
@@ -667,10 +684,17 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                                 else
                                     Brush.horizontalGradient(
                                         listOf(
-                                            MaterialTheme.colorScheme.surface,
-                                            MaterialTheme.colorScheme.surface
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                                         )
                                     )
+                            )
+                            .border(
+                                BorderStroke(
+                                    1.dp,
+                                    if (isSelected) Color.Transparent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                                ),
+                                RoundedCornerShape(50)
                             )
                             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {
                                 selectedCategory = category
@@ -707,11 +731,155 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 120.dp)
             ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp)
+                                .clickable { onNavigateToScheduler() },
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CalendarMonth,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "AI Scheduler",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(100.dp)
+                                .clickable { onNavigateToInsights() },
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Analytics,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "CPW Insights",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(84.dp)
+                            .clickable { onNavigateToStyleStudio() },
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f), shape = CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Palette,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "AI Style & Color Studio",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Analyze color harmony wheel & optimize capsule wardrobe versatility",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
                 item {
                     Card(
                         modifier = Modifier.height(200.dp),
                         shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
                         onClick = { showAddManualSheet = true }
                     ) {
                         Column(
@@ -722,7 +890,15 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
-                                    .background(MaterialTheme.colorScheme.secondary, CircleShape),
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                MaterialTheme.colorScheme.primary,
+                                                MaterialTheme.colorScheme.secondary
+                                            )
+                                        ),
+                                        CircleShape
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -735,7 +911,7 @@ fun ClosetScreen(viewModel: DashboardViewModel, onNavigateToStylist: () -> Unit 
                             Text(
                                 "Add New",
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -918,9 +1094,9 @@ fun ClosetItemCard(
             .height(220.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale)
             .shadow(
-                elevation = if (isDead) 10.dp else 6.dp,
+                elevation = if (isDead) 12.dp else 6.dp,
                 shape = RoundedCornerShape(20.dp),
-                spotColor = if (isDead) MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
+                spotColor = if (isDead) MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
                             else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
             )
             .clip(RoundedCornerShape(20.dp))
@@ -1027,32 +1203,57 @@ fun ClosetItemCard(
                     Text("Rarely Worn", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            if (rating == 1) {
+            val isDark = isSystemInDarkTheme()
+            val thumbUpColor = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
+            val thumbDownColor = if (isDark) Color(0xFFE57373) else Color(0xFFC62828)
+            val ratingBgColor = if (isDark) Color.Black.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.9f)
+            val ratingBorderColor = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Transparent
+
+            if (rating != null && rating > 0) {
                 Box(
                     modifier = Modifier
-                        .background(Color.White.copy(alpha = 0.9f), CircleShape)
-                        .padding(5.dp)
+                        .background(ratingBgColor, RoundedCornerShape(12.dp))
+                        .then(
+                            if (isDark) Modifier.border(1.dp, ratingBorderColor, RoundedCornerShape(12.dp))
+                            else Modifier
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Icon(Icons.Filled.ThumbUp, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(12.dp))
+                    Icon(Icons.Filled.ThumbUp, null, tint = thumbUpColor, modifier = Modifier.size(12.dp))
                 }
-            } else if (rating == -1) {
+            } else if (rating != null && rating < 0) {
                 Box(
                     modifier = Modifier
-                        .background(Color.White.copy(alpha = 0.9f), CircleShape)
-                        .padding(5.dp)
+                        .background(ratingBgColor, RoundedCornerShape(12.dp))
+                        .then(
+                            if (isDark) Modifier.border(1.dp, ratingBorderColor, RoundedCornerShape(12.dp))
+                            else Modifier
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Icon(Icons.Filled.ThumbDown, null, tint = Color(0xFFE53935), modifier = Modifier.size(12.dp))
+                    Icon(Icons.Filled.ThumbDown, null, tint = thumbDownColor, modifier = Modifier.size(12.dp))
                 }
             }
         }
 
-        // ─── Hiệu ứng viền phát sáng cho đồ ít mặc ───
+        // ─── Hiệu ứng viền phát sáng ───
         if (isDead) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Transparent)
+                    .border(
+                        BorderStroke(1.5.dp, Brush.linearGradient(listOf(Color(0xFFFF6B35), Color(0xFFFF3D00)))),
+                        RoundedCornerShape(20.dp)
+                    )
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                        RoundedCornerShape(20.dp)
+                    )
             )
         }
     }

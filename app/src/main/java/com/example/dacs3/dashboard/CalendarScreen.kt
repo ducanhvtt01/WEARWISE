@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -186,7 +187,7 @@ fun CalendarScreen(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
             ) {
-                items(weeklyDates) { date ->
+                items(weeklyDates, key = { date -> date.time }) { date ->
                     val dayFormat = SimpleDateFormat("EEE", Locale.US)
                     val dateFormat = SimpleDateFormat("dd", Locale.US)
                     val fullFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -198,13 +199,6 @@ fun CalendarScreen(
                     val dayName = dayFormat.format(date)
                     val dayNum = dateFormat.format(date)
 
-                    val cardBg by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary
-                                      else if (isToday) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                      else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        label = "cardBg"
-                    )
-
                     val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary
                                     else MaterialTheme.colorScheme.onSurface
 
@@ -213,12 +207,25 @@ fun CalendarScreen(
                             .width(60.dp)
                             .height(80.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(cardBg)
+                            .background(
+                                if (isSelected) {
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            MaterialTheme.colorScheme.primary,
+                                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f)
+                                        )
+                                    )
+                                } else if (isToday) {
+                                    SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                } else {
+                                    SolidColor(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                                }
+                            )
                             .border(
                                 width = 1.dp,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary
+                                color = if (isSelected) Color.Transparent
                                         else if (isToday) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                                 shape = RoundedCornerShape(16.dp)
                             )
                             .clickable {
@@ -391,7 +398,7 @@ fun CalendarScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
-                    items(schedulesForSelectedDate) { scheduleDetails ->
+                    items(schedulesForSelectedDate, key = { it.schedule.id ?: "" }) { scheduleDetails ->
                         OutfitScheduleCard(
                             scheduleDetails = scheduleDetails,
                             isToday = selectedDateStr == todayDateStr,
@@ -1378,12 +1385,12 @@ fun OutfitScheduleCard(
 
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(20.dp)
             )
     ) {
@@ -1429,7 +1436,7 @@ fun OutfitScheduleCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(scheduleDetails.items) { item ->
+                items(scheduleDetails.items, key = { it.id ?: "" }) { item ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.width(60.dp)
@@ -1437,13 +1444,13 @@ fun OutfitScheduleCard(
                         Box(
                             modifier = Modifier
                                 .size(50.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surface)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 .border(
                                     width = 1.dp,
-                                    color = if (item.status.uppercase() in listOf("WORN", "IN_WASH")) MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
-                                            else Color.Transparent,
-                                    shape = RoundedCornerShape(10.dp)
+                                    color = if (item.status.uppercase() in listOf("WORN", "IN_WASH")) MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                    shape = RoundedCornerShape(12.dp)
                                 )
                         ) {
                             if (item.imageUrl.isNotEmpty()) {

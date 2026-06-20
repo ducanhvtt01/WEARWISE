@@ -5,9 +5,9 @@ import androidx.compose.ui.graphics.Color
 // --- LIGHT MODE COLORS ---
 val OffWhite = Color(0xFFFBFBFC)
 val MidnightBlue = Color(0xFF1A237E)
-val SilverMist = Color(0xFF8D99AE)
+val SilverMist = Color(0xFF5A6A85)
 val LightGray = Color(0xFFF0F2F5)
-val AccentTeal = Color(0xFF00BFA5)
+val AccentTeal = Color(0xFF00796B)
 val SoftTeal = Color(0xFFE0F2F1)
 val SoftOrange = Color(0xFFFFF3E0)
 

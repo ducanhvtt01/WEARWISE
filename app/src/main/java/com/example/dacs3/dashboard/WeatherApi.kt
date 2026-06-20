@@ -45,6 +45,12 @@ data class ForecastItem(
     val dt_txt: String
 )
 
+data class DailyForecast(
+    val dateStr: String,
+    val tempStr: String,
+    val condition: String
+)
+
 // 2. INTERFACE API
 interface OpenWeatherApi {
     @GET("data/2.5/weather")
@@ -110,6 +116,9 @@ class WeatherViewModel : ViewModel() {
     private val _tomorrowCondition = MutableStateFlow("Clear")
     val tomorrowCondition: StateFlow<String> = _tomorrowCondition
 
+    private val _weeklyForecast = MutableStateFlow<List<DailyForecast>>(emptyList())
+    val weeklyForecast: StateFlow<List<DailyForecast>> = _weeklyForecast
+
     private val myApiKey = com.example.dacs3.BuildConfig.WEATHER_API_KEY
 
     private fun extractTomorrowWeather(forecastResponse: ForecastResponse) {
@@ -137,6 +146,26 @@ class WeatherViewModel : ViewModel() {
         }
     }
 
+    private fun extractWeeklyForecast(forecastResponse: ForecastResponse) {
+        try {
+            val list = mutableListOf<DailyForecast>()
+            val groups = forecastResponse.list.groupBy { it.dt_txt.substringBefore(" ") }
+            for ((dateStr, items) in groups) {
+                val representativeItem = items.find { it.dt_txt.contains("12:00:00") } ?: items.first()
+                list.add(
+                    DailyForecast(
+                        dateStr = dateStr,
+                        tempStr = "${representativeItem.main.temp.roundToInt()}°C",
+                        condition = representativeItem.weather.firstOrNull()?.main ?: "Clear"
+                    )
+                )
+            }
+            _weeklyForecast.value = list
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun fetchWeather() {
         viewModelScope.launch {
             try {
@@ -161,6 +190,7 @@ class WeatherViewModel : ViewModel() {
                         apiKey = myApiKey
                     )
                     extractTomorrowWeather(forecastResponse)
+                    extractWeeklyForecast(forecastResponse)
                 } catch (e: Exception) {
                     _tomorrowTemperature.value = _temperature.value
                     _tomorrowCondition.value = _condition.value
@@ -220,6 +250,7 @@ class WeatherViewModel : ViewModel() {
                         apiKey = myApiKey
                     )
                     extractTomorrowWeather(forecastResponse)
+                    extractWeeklyForecast(forecastResponse)
                 } catch (e: Exception) {
                     _tomorrowTemperature.value = _temperature.value
                     _tomorrowCondition.value = _condition.value

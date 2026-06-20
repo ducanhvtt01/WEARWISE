@@ -272,7 +272,7 @@ fun TodoScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 100.dp)
                 ) {
-                    items(filteredTodos) { todo ->
+                    items(filteredTodos, key = { it.id ?: "" }) { todo ->
                         TodoCard(
                             todo = todo,
                             onCheckChanged = { isChecked ->
@@ -778,70 +778,94 @@ fun TodoCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        colors = CardDefaults.cardColors(
+            containerColor = if (todo.isCompleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 1.dp,
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                if (todo.isCompleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                 RoundedCornerShape(16.dp)
             )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Max),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(
-                checked = todo.isCompleted,
-                onCheckedChange = { onCheckChanged(it == true) }
+            // Left color indicator strip based on completion status
+            Box(
+                modifier = Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .background(
+                        if (todo.isCompleted) Color(0xFF4CAF50)
+                        else MaterialTheme.colorScheme.primary
+                    )
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = todo.title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = if (todo.isCompleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
-                    textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = todo.isCompleted,
+                    onCheckedChange = { onCheckChanged(it == true) }
                 )
-                if (!todo.description.isNullOrEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = todo.description,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        text = todo.title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = if (todo.isCompleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
+                        textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-                if (!todo.dueDate.isNullOrEmpty()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.CalendarToday,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                    if (!todo.description.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Due: ${todo.dueDate}",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.secondary
+                            text = todo.description,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+                    if (!todo.dueDate.isNullOrEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Due: ${todo.dueDate}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
                 }
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.DeleteOutline,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.DeleteOutline,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     }

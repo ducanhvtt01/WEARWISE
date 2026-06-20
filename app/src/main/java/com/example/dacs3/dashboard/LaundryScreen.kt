@@ -1,6 +1,7 @@
 package com.example.dacs3.dashboard
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -276,7 +277,7 @@ fun LaundryScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(bottom = 100.dp)
                     ) {
-                        items(currentList) { item ->
+                        items(currentList, key = { it.id ?: "" }) { item ->
                             LaundryItemCard(
                                 item = item,
                                 currentTab = selectedTab,
@@ -301,14 +302,14 @@ fun LaundryItemCard(
     onAction: (String) -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-                shape = RoundedCornerShape(16.dp)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(20.dp)
             )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -317,8 +318,13 @@ fun LaundryItemCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(MaterialTheme.colorScheme.surface)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                        shape = RoundedCornerShape(14.dp)
+                    )
             ) {
                 if (item.imageUrl.isNotEmpty()) {
                     AsyncImage(
@@ -370,7 +376,7 @@ fun LaundryItemCard(
                     Button(
                         onClick = { onAction("IN_WASH") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
                         Icon(Icons.Filled.LocalLaundryService, null, modifier = Modifier.size(14.dp))
@@ -386,15 +392,16 @@ fun LaundryItemCard(
                         OutlinedButton(
                             onClick = { onAction("NEED_IRON") },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(vertical = 4.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                         ) {
                             Text("Iron", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         Button(
                             onClick = { onAction("AVAILABLE") },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(10.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
                             Text("Clean", fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -405,7 +412,7 @@ fun LaundryItemCard(
                     Button(
                         onClick = { onAction("AVAILABLE") },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
                         Icon(Icons.Filled.Check, null, modifier = Modifier.size(14.dp))

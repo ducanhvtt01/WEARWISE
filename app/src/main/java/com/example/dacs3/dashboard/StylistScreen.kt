@@ -18,6 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import android.app.Activity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Mood
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -109,7 +112,8 @@ data class ChatMessage(
 @Composable
 fun StylistScreen(
     weatherViewModel: WeatherViewModel = viewModel(),
-    dashboardViewModel: DashboardViewModel = viewModel()
+    dashboardViewModel: DashboardViewModel = viewModel(),
+    onNavigateToSwiper: () -> Unit = {}
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -145,11 +149,30 @@ fun StylistScreen(
     val listState = rememberLazyListState()
 
     val currentTemp by weatherViewModel.temperature.collectAsState()
+    val currentCondition by weatherViewModel.condition.collectAsState()
     val tomorrowTemp by weatherViewModel.tomorrowTemperature.collectAsState()
     val tomorrowCondition by weatherViewModel.tomorrowCondition.collectAsState()
     val myClosetItems by dashboardViewModel.clothingItems.collectAsState()
     val feedbackMap by dashboardViewModel.clothingFeedbackMap.collectAsState()
     val chatSessions by dashboardViewModel.chatSessions.collectAsState()
+
+    var selectedEvent by remember { mutableStateOf("University") }
+    var selectedMood by remember { mutableStateOf("Confident") }
+
+    var showMoodSheet by remember { mutableStateOf(false) }
+    var showEventSheet by remember { mutableStateOf(false) }
+
+    val eventCategories = mapOf(
+        "Academic & Work" to listOf("University", "Presentation", "Library", "Internship"),
+        "Social & Dating" to listOf("Coffee Date", "Dinner Date", "Party", "First Date"),
+        "Active & Trip" to listOf("Gym Session", "Weekend Trip", "Hiking", "Beach Day")
+    )
+
+    val moodCategories = mapOf(
+        "Energetic" to listOf("Confident", "Productive", "Bold", "Creative"),
+        "Relaxed" to listOf("Chill", "Cozy", "Peaceful", "Effortless"),
+        "Emotional" to listOf("Elegant", "Romantic", "Nostalgic", "Edgy")
+    )
 
     // 1. THÊM BIẾN TRIGGER ĐỂ ÉP AI XÓA TRÍ NHỚ
     var chatSessionTrigger by remember { mutableIntStateOf(0) }
@@ -613,6 +636,54 @@ fun StylistScreen(
                                         .fillMaxSize()
                                         .verticalScroll(rememberScrollState())
                                 ) {
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 16.dp)
+                                            .clickable { onNavigateToSwiper() }
+                                            .shadow(8.dp, RoundedCornerShape(20.dp)),
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .background(MaterialTheme.colorScheme.secondary, CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.AutoAwesome,
+                                                    null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    "Outfit Matcher Game 🎮",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.sp,
+                                                    color = MaterialTheme.colorScheme.secondary
+                                                )
+                                                Text(
+                                                    "Swipe to match and train your AI!",
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                                )
+                                            }
+                                            Icon(
+                                                Icons.Filled.ArrowForward,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.secondary
+                                            )
+                                        }
+                                    }
+
                                     ContextBriefingCard(
                                         currentTemperature = currentTemp,
                                         onActionClick = { aiPrompt ->
@@ -624,9 +695,83 @@ fun StylistScreen(
                                         sendMessageToAI(selectedPrompt)
                                     })
 
+                                    Column(modifier = Modifier.padding(bottom = 20.dp)) {
+                                        Text(
+                                            "What's the plan today?",
+                                            fontSize = 15.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.padding(bottom = 12.dp)
+                                        )
+                                        FilterChip(
+                                            selected = true,
+                                            onClick = { showEventSheet = true },
+                                            label = { Text("Event: $selectedEvent", fontWeight = FontWeight.Medium) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Outlined.Event,
+                                                    null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            },
+                                            trailingIcon = {
+                                                Icon(
+                                                    Icons.Filled.KeyboardArrowDown,
+                                                    null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                                                selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimary
+                                            ),
+                                            shape = RoundedCornerShape(12.dp), border = null
+                                        )
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        Column(modifier = Modifier.padding(bottom = 5.dp)) {
+                                            Text(
+                                                "How do you feel today?",
+                                                fontSize = 15.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(bottom = 12.dp)
+                                            )
+                                            FilterChip(
+                                                selected = true,
+                                                onClick = { showMoodSheet = true },
+                                                label = { Text("Mood: $selectedMood", fontWeight = FontWeight.Medium) },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Outlined.Mood,
+                                                        null,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                },
+                                                trailingIcon = {
+                                                    Icon(
+                                                        Icons.Filled.KeyboardArrowDown,
+                                                        null,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                                                    selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimary
+                                                ),
+                                                shape = RoundedCornerShape(12.dp), border = null
+                                            )
+                                        }
+                                    }
+
                                     OutfitCanvasSection(
                                         viewModel = dashboardViewModel,
-                                        weatherTemp = currentTemp,
+                                        weatherContext = "$currentTemp, $currentCondition | Mood: $selectedMood | Event: $selectedEvent",
                                         onWearClick = { ids ->
                                             ootdItemIdsToLog = ids
                                             showLogOotdDialog = true
@@ -671,9 +816,16 @@ fun StylistScreen(
                                                 ootdItemIdsToLog = ids
                                                 showLogOotdDialog = true
                                             },
-                                            onItemFeedback = { id, rating ->
-                                                dashboardViewModel.saveClothingFeedback(id, rating)
-                                                Toast.makeText(context, if (rating > 0) "Glad you like it! 👍" else "Got it, I'll avoid this! 👎", Toast.LENGTH_SHORT).show()
+                                            onItemFeedback = { id, delta ->
+                                                dashboardViewModel.saveClothingFeedback(id, delta)
+                                                val currentRating = dashboardViewModel.clothingFeedbackMap.value[id] ?: 0
+                                                val newRating = currentRating + delta
+                                                Toast.makeText(
+                                                    context,
+                                                    if (delta > 0) "Glad you like it! 👍 (Rating: $newRating)"
+                                                    else "Got it, I'll avoid this! 👎 (Rating: $newRating)",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
                                             }
                                         )
                                         Spacer(modifier = Modifier.height(12.dp))
@@ -1287,6 +1439,151 @@ fun StylistScreen(
             ootdItemIdsToLog = emptyList()
         }
     )
+
+    if (showMoodSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showMoodSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                item {
+                    Text(
+                        "Select your feeling!",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                moodCategories.forEach { (category, moods) ->
+                    item {
+                        Text(
+                            category.uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    item {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(bottom = 24.dp)
+                        ) {
+                            moods.chunked(2).forEach { rowMoods ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowMoods.forEach { mood ->
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (selectedMood == mood) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                                .clickable {
+                                                    selectedMood = mood
+                                                    showMoodSheet = false
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                mood,
+                                                color = if (selectedMood == mood) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                                fontWeight = if (selectedMood == mood) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(40.dp)) }
+            }
+        }
+    }
+
+    if (showEventSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showEventSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.background
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp)
+            ) {
+                item {
+                    Text(
+                        "Select your occasion",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+                eventCategories.forEach { (category, events) ->
+                    item {
+                        Text(
+                            category.uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    item {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(bottom = 24.dp)
+                        ) {
+                            events.chunked(2).forEach { rowEvents ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    rowEvents.forEach { event ->
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(if (selectedEvent == event) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                                .clickable {
+                                                    selectedEvent = event
+                                                    showEventSheet = false
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                event,
+                                                color = if (selectedEvent == event) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                                fontWeight = if (selectedEvent == event) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(40.dp)) }
+            }
+        }
+    }
 }
 
 // =======================================================
@@ -1476,7 +1773,7 @@ fun QuickPromptsSection(onPromptClick: (String) -> Unit) {
 }
 
 @Composable
-fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWearClick: (List<String>) -> Unit) {
+fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherContext: String, onWearClick: (List<String>) -> Unit) {
     val aiCanvasOutfit by viewModel.aiCanvasOutfit.collectAsState()
     val isLoading = viewModel.isCanvasLoading
     val canvasError = viewModel.canvasError
@@ -1492,6 +1789,164 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWe
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
+        var showResetDialog by remember { mutableStateOf(false) }
+        val itemsToKeep = remember { mutableStateListOf<String>() }
+        
+        if (showResetDialog && aiCanvasOutfit != null) {
+            androidx.compose.ui.window.Dialog(onDismissRequest = { showResetDialog = false }) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp)
+                    ) {
+                        // Header
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                "Custom Refresh",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            "Select the items you want to KEEP. Unselected items will be replaced.",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 20.sp
+                        )
+                        
+                        Spacer(modifier = Modifier.height(20.dp))
+                        
+                        // Item List
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            aiCanvasOutfit!!.items.forEach { item ->
+                                val isKept = itemsToKeep.contains(item.id)
+                                val bgColor = if (isKept) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                val borderColor = if (isKept) MaterialTheme.colorScheme.primary else Color.Transparent
+                                val iconTint = if (isKept) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            val id = item.id ?: return@clickable
+                                            if (isKept) itemsToKeep.remove(id) else itemsToKeep.add(id)
+                                        },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = bgColor,
+                                    border = BorderStroke(1.dp, borderColor)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Thumbnail
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(MaterialTheme.colorScheme.surface),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (!item.imageUrl.isNullOrEmpty()) {
+                                                coil.compose.AsyncImage(
+                                                    model = item.imageUrl,
+                                                    contentDescription = null,
+                                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Icon(Icons.Outlined.Checkroom, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        
+                                        // Text Info
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = item.category.uppercase(),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                letterSpacing = 1.sp
+                                            )
+                                            Text(
+                                                text = item.clothes_name,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        
+                                        // Check/Refresh Icon
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isKept) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isKept) Icons.Default.Check else Icons.Default.Refresh,
+                                                contentDescription = null,
+                                                tint = if (isKept) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(28.dp))
+                        
+                        // Actions
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = { showResetDialog = false },
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text("Cancel", fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = {
+                                    showResetDialog = false
+                                    val replaceIds = aiCanvasOutfit!!.items.mapNotNull { it.id }.filter { it !in itemsToKeep }
+                                    replaceIds.forEach { id -> viewModel.canvasExcludedIds.add(id) }
+                                    viewModel.generateCanvasOutfit(weatherContext, itemsToKeep.toSet())
+                                },
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text("Regenerate", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1647,42 +2102,68 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWe
                                 )
                             }
                             Column(
-                                modifier = Modifier.padding(start = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                IconButton(onClick = {
-                                    val newRating = if (itemRating == 1) 0 else 1
-                                    viewModel.saveClothingFeedback(item.id ?: "", newRating)
-                                    Toast.makeText(
-                                        context,
-                                        if (newRating > 0) "Glad you like it! 👍" else "Feedback cleared",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Default.ThumbUp,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (itemRating == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                    )
-                                }
-                                IconButton(onClick = {
-                                    val newRating = if (itemRating == -1) 0 else -1
-                                    viewModel.saveClothingFeedback(item.id ?: "", newRating)
-                                    Toast.makeText(
-                                        context,
-                                        if (newRating < 0) "Got it, I'll avoid this! 👎" else "Feedback cleared",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Default.ThumbDown,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (itemRating == -1) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                    )
-                                }
-                            }
+                                                                modifier = Modifier.padding(start = 8.dp),
+                                                                horizontalAlignment = Alignment.CenterHorizontally
+                                                            ) {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.Start
+                                                                ) {
+                                                                    IconButton(onClick = {
+                                                                        viewModel.saveClothingFeedback(item.id ?: "", 1)
+                                                                        Toast.makeText(
+                                                                            context,
+                                                                            "Glad you like it! 👍 (Rating: ${itemRating + 1})",
+                                                                            Toast.LENGTH_SHORT
+                                                                        ).show()
+                                                                    }) {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.ThumbUp,
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.size(18.dp),
+                                                                            tint = if (itemRating > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                                                        )
+                                                                    }
+                                                                    if (itemRating > 0) {
+                                                                        Text(
+                                                                            text = "+$itemRating",
+                                                                            color = MaterialTheme.colorScheme.primary,
+                                                                            fontSize = 11.sp,
+                                                                            fontWeight = FontWeight.Bold,
+                                                                            modifier = Modifier.padding(end = 4.dp)
+                                                                        )
+                                                                    }
+                                                                }
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.Start
+                                                                ) {
+                                                                    IconButton(onClick = {
+                                                                        viewModel.saveClothingFeedback(item.id ?: "", -1)
+                                                                        Toast.makeText(
+                                                                            context,
+                                                                            "Got it, I'll avoid this! 👎 (Rating: ${itemRating - 1})",
+                                                                            Toast.LENGTH_SHORT
+                                                                        ).show()
+                                                                    }) {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.ThumbDown,
+                                                                            contentDescription = null,
+                                                                            modifier = Modifier.size(18.dp),
+                                                                            tint = if (itemRating < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                                                        )
+                                                                    }
+                                                                    if (itemRating < 0) {
+                                                                        Text(
+                                                                            text = "$itemRating",
+                                                                            color = MaterialTheme.colorScheme.error,
+                                                                            fontSize = 11.sp,
+                                                                            fontWeight = FontWeight.Bold,
+                                                                            modifier = Modifier.padding(end = 4.dp)
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
                         }
                     }
                 }
@@ -1695,7 +2176,10 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWe
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
-                        onClick = { viewModel.aiCanvasOutfit.value = null },
+                        onClick = { 
+                            viewModel.aiCanvasOutfit.value = null 
+                            viewModel.canvasExcludedIds.clear()
+                        },
                         modifier = Modifier
                             .size(56.dp)
                             .background(MaterialTheme.colorScheme.background, CircleShape)
@@ -1709,6 +2193,7 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWe
 
                     Button(
                         onClick = {
+                            viewModel.canvasExcludedIds.clear()
                             val ids = outfit.items.mapNotNull { it.id }
                             onWearClick(ids)
                         },
@@ -1727,7 +2212,12 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWe
                     }
 
                     IconButton(
-                        onClick = { viewModel.generateCanvasOutfit(weatherTemp) },
+                        onClick = { 
+                            // Mở hộp thoại chọn đồ, MẶC ĐỊNH LÀ TICK (GIỮ LẠI) TẤT CẢ
+                            itemsToKeep.clear()
+                            outfit.items.forEach { item -> item.id?.let { itemsToKeep.add(it) } }
+                            showResetDialog = true
+                        },
                         modifier = Modifier
                             .size(56.dp)
                             .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
@@ -1752,7 +2242,7 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherTemp: String, onWe
                 }
 
                 Button(
-                    onClick = { viewModel.generateCanvasOutfit(weatherTemp) },
+                    onClick = { viewModel.generateCanvasOutfit(weatherContext) },
                     modifier = Modifier.padding(vertical = 32.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
@@ -1869,20 +2359,36 @@ fun ChatBubble(
             modifier = Modifier.fillMaxWidth(0.85f),
             horizontalAlignment = if (message.isFromUser) Alignment.End else Alignment.Start
         ) {
+            val bubbleShape = RoundedCornerShape(
+                topStart = 20.dp,
+                topEnd = 20.dp,
+                bottomStart = if (message.isFromUser) 20.dp else 4.dp,
+                bottomEnd = if (message.isFromUser) 4.dp else 20.dp
+            )
             Box(
                 modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 20.dp,
-                            topEnd = 20.dp,
-                            bottomStart = if (message.isFromUser) 20.dp else 4.dp,
-                            bottomEnd = if (message.isFromUser) 4.dp else 20.dp
-                        )
-                    )
-                    .background(
-                        if (message.isError) MaterialTheme.colorScheme.errorContainer
-                        else if (message.isFromUser) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
+                    .clip(bubbleShape)
+                    .then(
+                        if (message.isError) {
+                            Modifier.background(MaterialTheme.colorScheme.errorContainer)
+                        } else if (message.isFromUser) {
+                            Modifier.background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.secondary
+                                    )
+                                )
+                            )
+                        } else {
+                            Modifier
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                    bubbleShape
+                                )
+                        }
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {

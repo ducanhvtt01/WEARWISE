@@ -127,7 +127,7 @@ fun ProfileScreen(
         val todayDate = java.util.Date()
         itemsList.filter { item ->
             val rating = feedbackMap[item.id]
-            if (rating == -1) return@filter true // Đồ bị Dislike
+            if (rating != null && rating < 0) return@filter true // Đồ bị Dislike
             
             // Hoặc đồ hơn 90 ngày chưa mặc
             val referenceDateString = item.lastWornDate ?: item.createdAt
@@ -434,12 +434,13 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(
-                        8.dp,
+                        12.dp,
                         RoundedCornerShape(24.dp),
-                        spotColor = MaterialTheme.colorScheme.surfaceVariant
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                     ),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             ) {
                 Row(modifier = Modifier.padding(24.dp)) {
                     Box(
@@ -1142,44 +1143,54 @@ fun SettingRow(
     subtitle: String? = null,
     onClick: () -> Unit = {}
 ) {
-    Row(
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
         modifier = Modifier
             .fillMaxWidth()
+            .padding(vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .background(MaterialTheme.colorScheme.surface, CircleShape),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(vertical = 14.dp, horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            if (subtitle != null) {
-                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (subtitle != null) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = "Go",
+                tint = MaterialTheme.colorScheme.primary
+            )
         }
-        Icon(
-            Icons.Filled.ChevronRight,
-            contentDescription = "Go",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -1190,45 +1201,54 @@ fun SettingToggleRow(
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Row(
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
         modifier = Modifier
             .fillMaxWidth()
+            .padding(vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable { onCheckedChange(!isChecked) }
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .background(MaterialTheme.colorScheme.surface, CircleShape),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(vertical = 14.dp, horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f)
+            )
+            Switch(
+                checked = isChecked,
+                onCheckedChange = { onCheckedChange(it) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    checkedTrackColor = MaterialTheme.colorScheme.secondary,
+                    uncheckedTrackColor = Color.Gray,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f)
-        )
-        Switch(
-            checked = isChecked,
-            onCheckedChange = { onCheckedChange(it) },
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                checkedTrackColor = MaterialTheme.colorScheme.secondary,
-                uncheckedTrackColor = Color.Gray,
-                uncheckedThumbColor = MaterialTheme.colorScheme.surface
-            )
-        )
     }
 }
 
@@ -1274,7 +1294,7 @@ fun DeadItemsSheetContent(
             ) {
                 items(deadItems.size) { index ->
                     val item = deadItems[index]
-                    val isDisliked = feedbackMap[item.id] == -1
+                    val isDisliked = (feedbackMap[item.id] ?: 0) < 0
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)

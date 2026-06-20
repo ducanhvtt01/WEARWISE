@@ -51,7 +51,8 @@ data class ClothingItem(
     val occasions: List<String>? = null,
     val status: String = "active",
     @SerialName("created_at") val createdAt: String? = null,
-    @SerialName("last_worn_date") val lastWornDate: String? = null
+    @SerialName("last_worn_date") val lastWornDate: String? = null,
+    val price: Float? = null
 )
 
 // 3. Bộ phối đồ (Outfit)

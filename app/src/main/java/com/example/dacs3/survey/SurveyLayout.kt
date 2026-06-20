@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,10 +34,11 @@ fun SurveyLayout(
                     progress = currentStep / 3f,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = MaterialTheme.colorScheme.secondary,
-                    trackColor = MaterialTheme.colorScheme.secondaryContainer
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
+                    strokeCap = StrokeCap.Round
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(

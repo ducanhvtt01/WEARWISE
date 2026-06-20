@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -248,12 +249,17 @@ fun WeatherWidget(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .shadow(
-                        6.dp,
-                        RoundedCornerShape(16.dp),
-                        spotColor = Color.Gray.copy(alpha = 0.2f)
+                        8.dp,
+                        RoundedCornerShape(20.dp),
+                        spotColor = widgetBgColor.copy(alpha = 0.3f)
                     )
-                    .background(widgetBgColor, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .background(widgetBgColor.copy(alpha = 0.85f), RoundedCornerShape(20.dp))
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.15f),
+                        RoundedCornerShape(20.dp)
+                    )
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 val composition by rememberLottieComposition(
                     LottieCompositionSpec.RawRes(
@@ -266,7 +272,7 @@ fun WeatherWidget(
                 )
 
                 if (composition != null) {
-                    LottieAnimation(composition, { progress }, modifier = Modifier.size(36.dp))
+                    LottieAnimation(composition, { progress }, modifier = Modifier.size(38.dp))
                 } else {
                     Icon(
                         Icons.Filled.WbSunny,
@@ -276,7 +282,7 @@ fun WeatherWidget(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
                 Text(
                     temperature,

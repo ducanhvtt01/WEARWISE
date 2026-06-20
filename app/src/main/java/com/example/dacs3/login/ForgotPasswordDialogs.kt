@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -68,7 +69,7 @@ fun ForgotPasswordDialog(
         onDismissRequest = onDismiss,
         confirmButton = {},
         containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         text = {
             Column(
                 modifier = Modifier
@@ -111,13 +112,13 @@ fun ForgotPasswordDialog(
                             onValueChange = { email = it },
                             label = { Text("Email Address") },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                 focusedLabelColor = MaterialTheme.colorScheme.primary,
                                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -175,7 +176,7 @@ fun ForgotPasswordDialog(
                             onValueChange = { newPassword = it },
                             label = { Text("New Password") },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             trailingIcon = {
@@ -191,7 +192,7 @@ fun ForgotPasswordDialog(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                 focusedLabelColor = MaterialTheme.colorScheme.primary,
                                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -202,7 +203,7 @@ fun ForgotPasswordDialog(
                             onValueChange = { confirmPassword = it },
                             label = { Text("Confirm New Password") },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                             visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             trailingIcon = {
@@ -218,7 +219,7 @@ fun ForgotPasswordDialog(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                 focusedLabelColor = MaterialTheme.colorScheme.primary,
                                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -293,7 +294,7 @@ fun ForgotPasswordDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
@@ -320,7 +321,7 @@ fun ForgotPasswordDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
@@ -369,10 +370,11 @@ fun OtpInputField(
                         modifier = Modifier
                             .width(32.dp)
                             .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .border(
                                 width = if (isFocused) 2.dp else 1.dp,
                                 color = if (isFocused) activeBorderColor else outlineColor,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                             .background(boxBgColor),
                         contentAlignment = Alignment.Center

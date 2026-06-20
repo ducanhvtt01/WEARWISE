@@ -27,6 +27,7 @@ import java.io.ByteArrayOutputStream
 class DashboardViewModel : ViewModel() {
     var userProfile by mutableStateOf<Profile?>(null)
     var isUpdating by mutableStateOf(false)
+    var activeTab by mutableStateOf(0)
 
     // Biến lưu trữ danh sách quần áo để ClosetScreen quan sát
     private val _clothingItems = MutableStateFlow<List<ClothingItem>>(emptyList())
@@ -117,7 +118,8 @@ class DashboardViewModel : ViewModel() {
                     .select { filter { eq("user_id", userId) } }
                     .decodeList<ClothingFeedback>()
                 
-                val feedbackMap = feedbacks.associate { it.clothingId to it.rating }
+                val feedbackMap = feedbacks.groupBy { it.clothingId }
+                    .mapValues { (_, list) -> list.sumOf { it.rating } }
                 _clothingFeedbackMap.value = feedbackMap
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -519,17 +521,21 @@ class DashboardViewModel : ViewModel() {
         currentChatSessionId = null
     }
 
+    // Danh sách các item bị loại trừ tạm thời trong phiên Canvas hiện tại
+    val canvasExcludedIds = mutableSetOf<String>()
+
     // ==========================================
     // TẠO OUTFIT CANVAS BẰNG AI
     // ==========================================
-    fun generateCanvasOutfit(weatherTemp: String) {
+    fun generateCanvasOutfit(weatherContext: String, lockedItemIds: Set<String> = emptySet()) {
         viewModelScope.launch(Dispatchers.IO) {
             isCanvasLoading = true
             canvasError = null
             try {
-                // Lọc bỏ những món đồ đã bị người dùng Dislike (rating == -1)
-                val dislikedItemIds = _clothingFeedbackMap.value.filterValues { it == -1 }.keys
-                val currentItems = _clothingItems.value.filter { it.id !in dislikedItemIds }
+                // Lọc bỏ những món đồ đã bị người dùng Dislike (rating < 0) và đồ bị loại trừ tạm thời
+                val dislikedItemIds = _clothingFeedbackMap.value.filterValues { it < 0 }.keys
+                val itemsToExclude = (dislikedItemIds + canvasExcludedIds) - lockedItemIds
+                val currentItems = _clothingItems.value.filter { it.id !in itemsToExclude }
                 
                 if (currentItems.size < 3) {
                     canvasError = "You need at least 3 active (non-disliked) items in your closet."
@@ -666,18 +672,26 @@ class DashboardViewModel : ViewModel() {
 
                 val generativeModel = com.google.ai.client.generativeai.GenerativeModel(
                     modelName = "gemini-3.1-flash-lite",
-                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
+                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
+                    generationConfig = com.google.ai.client.generativeai.type.generationConfig {
+                        temperature = 0.9f
+                    }
                 )
 
                 // Tạo bản đồ hai chiều giữa ID ngắn và các món đồ thực tế (chạy trên finalCandidates!)
                 val shortIdMap = mutableMapOf<String, com.example.dacs3.connectDB.ClothingItem>()
+                val lockedShortIds = mutableListOf<String>()
                 val inventoryData = finalCandidates.mapIndexed { index, item ->
                     val shortId = (index + 1).toString()
                     shortIdMap[shortId] = item
+                    if (item.id in lockedItemIds) {
+                        lockedShortIds.add(shortId)
+                    }
                     
                     val wearCount = frequencyMap[item.id] ?: 0
                     val recentlyWorn = if (item.id != null && recentClothingIds.contains(item.id)) "YES" else "NO"
-                    "- ID: $shortId | Name: ${item.clothes_name} | Category: ${item.category} | Color: ${item.mainColor} | Times Worn: $wearCount | Worn In Last 7 Days: $recentlyWorn"
+                    val userRating = _clothingFeedbackMap.value[item.id] ?: 0
+                    "- ID: $shortId | Name: ${item.clothes_name} | Category: ${item.category} | Color: ${item.mainColor} | Times Worn: $wearCount | Worn In Last 7 Days: $recentlyWorn | User Rating: $userRating"
                 }.joinToString("\n")
 
                 val socialTrends = userProfile?.favoriteStyles?.let { getSocialStyleTrends(it) } ?: ""
@@ -698,10 +712,18 @@ class DashboardViewModel : ViewModel() {
                     - Prioritize highly compatible color schemes and daily essentials.
                     """.trimIndent()
                 }
+                
+                val lockedItemsInstruction = if (lockedShortIds.isNotEmpty()) {
+                    "CRITICAL LOCK RULE: You ABSOLUTELY MUST include the following Item IDs in your final selection: ${lockedShortIds.joinToString(", ")}. These are the core items. The REST of the items you select MUST perfectly color-coordinate and style-coordinate with these locked items to form a cohesive outfit."
+                } else ""
 
                 val prompt = """
-                    You are an expert fashion stylist. The current weather is $weatherTemp.
+                    You are an expert fashion stylist.
+                    CONTEXT OVERVIEW (Weather, Mood, Event):
+                    $weatherContext
                     
+                    Your task is to select an outfit that perfectly matches the WEATHER, the user's MOOD, and the specific EVENT mentioned in the context above.
+
                     $styleDirection
                     
                     COMMUNITY TRENDS:
@@ -712,13 +734,17 @@ class DashboardViewModel : ViewModel() {
                     
                     Task: Select 3 to 5 items to create a perfect, stylish, and COMPLETE outfit for today.
                     CRITICAL RULES:
+                    $lockedItemsInstruction
                     1. You MUST select exactly 1 Top (or Shirt/Áo) and exactly 1 Bottom (or Pants/Quần).
                     2. You MUST select exactly 1 Shoes (or Giày) if they are available in the inventory.
                     3. If available and appropriate, you may select exactly 1 Outerwear (Áo khoác) and/or exactly 1 Accessories (Phụ kiện) to complete the outfit.
                     4. DO NOT select duplicates (e.g. two Bottoms, two Tops, or two Shoes).
                     5. The IDs you return MUST exactly match the simple numerical IDs provided above (e.g. 1, 4, 7).
+                    6. STRONGLY PRIORITIZE items with a high "User Rating" (the higher, the better). DO NOT select items with a negative "User Rating".
                     
                     Return ONLY the IDs separated by commas. Do NOT return any other text, markdown, or explanations.
+                    
+                    Randomness seed to ensure a unique output each time: ${java.util.UUID.randomUUID()}
                 """.trimIndent()
 
                 val response = generativeModel.generateContent(prompt)
@@ -726,7 +752,11 @@ class DashboardViewModel : ViewModel() {
 
                 // Trích xuất tất cả các ID ngắn dưới dạng số từ chuỗi phản hồi
                 val digits = Regex("\\d+").findAll(responseText).map { it.value }.toList()
-                val matchedItems = digits.mapNotNull { shortIdMap[it] }.distinct()
+                val parsedItems = digits.mapNotNull { shortIdMap[it] }
+                
+                // Bắt buộc nhồi thêm các món đồ bị KHÓA (locked) vào nếu Gemini quên
+                val forcedItems = currentItems.filter { it.id in lockedItemIds }
+                val matchedItems = (parsedItems + forcedItems).distinctBy { it.id }
                 
                 if (matchedItems.isNotEmpty() || currentItems.isNotEmpty()) {
                     var top = matchedItems.find { it.category.lowercase().run { contains("top") || contains("áo") || contains("shirt") } }
@@ -801,25 +831,53 @@ class DashboardViewModel : ViewModel() {
                 
                 // 1. Cập nhật giao diện (UI) ngay lập tức (Optimistic Update)
                 val currentMap = _clothingFeedbackMap.value.toMutableMap()
-                currentMap[clothingId] = rating
+                val currentRating = currentMap[clothingId] ?: 0
+                val newRating = if (rating == 0) 0 else currentRating + rating
+                currentMap[clothingId] = newRating
                 _clothingFeedbackMap.value = currentMap
                 
                 // 2. Cập nhật Database
-                val existingFeedback = try {
+                val existingFeedbacks = try {
                     supabase.from("clothing_feedback").select {
                         filter {
                             eq("user_id", userId)
                             eq("clothing_id", clothingId)
                         }
-                    }.decodeSingleOrNull<ClothingFeedback>()
-                } catch(e: Exception) { null }
+                    }.decodeList<ClothingFeedback>()
+                } catch(e: Exception) { 
+                    e.printStackTrace()
+                    emptyList() 
+                }
 
-                if (existingFeedback != null && existingFeedback.id != null) {
-                    // Update nếu đã tồn tại
+                if (existingFeedbacks.isNotEmpty()) {
+                    val firstFeedback = existingFeedbacks.first()
+                    
+                    // 2.1 Xóa các bản ghi trùng lặp (nếu có) do lỗi cũ
+                    if (existingFeedbacks.size > 1) {
+                        val idsToDelete = existingFeedbacks.drop(1).mapNotNull { it.id }
+                        idsToDelete.forEach { deleteId ->
+                            try {
+                                supabase.from("clothing_feedback").delete {
+                                    filter { eq("id", deleteId) }
+                                }
+                            } catch (e: Exception) { e.printStackTrace() }
+                        }
+                    }
+                    
+                    // 2.2 Cộng dồn tổng điểm của tất cả bản ghi cũ với điểm mới
+                    val totalDbRating = existingFeedbacks.sumOf { it.rating }
+                    val updatedRating = if (rating == 0) 0 else totalDbRating + rating
+                    
+                    // 2.3 Cập nhật bản ghi duy nhất còn lại
                     supabase.from("clothing_feedback").update(
-                        { set("rating", rating) }
+                        {
+                            set("rating", updatedRating)
+                        }
                     ) {
-                        filter { eq("id", existingFeedback.id) }
+                        filter { 
+                            eq("user_id", userId)
+                            eq("clothing_id", clothingId) 
+                        }
                     }
                 } else {
                     // Insert nếu chưa tồn tại
@@ -831,9 +889,11 @@ class DashboardViewModel : ViewModel() {
                     supabase.from("clothing_feedback").insert(feedback)
                 }
                 
-                println("Feedback saved: Item $clothingId rated $rating")
+                println("Feedback saved: Item $clothingId rated $newRating (delta: $rating)")
             } catch (e: Exception) {
                 e.printStackTrace()
+                android.util.Log.e("SupabaseError", "Error saving feedback: ${e.message}")
+                _errorMessage.value = "Update failed: ${e.message}"
             }
         }
     }
@@ -1686,6 +1746,38 @@ class DashboardViewModel : ViewModel() {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun saveCustomOutfit(
+        userId: String,
+        name: String,
+        clothingIds: List<String>,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val newOutfit = OutfitDbModel(
+                    userId = userId,
+                    name = name,
+                    description = "Created via Virtual Fitting Room"
+                )
+                val savedOutfit = supabase.from("outfits").insert(newOutfit) { select() }.decodeSingle<OutfitDbModel>()
+                
+                val outfitItems = clothingIds.map { 
+                    OutfitItemDbModel(outfitId = savedOutfit.id!!, clothingId = it)
+                }
+                supabase.from("outfit_items").insert(outfitItems)
+                
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    onSuccess() // Fallback to dismiss loading
                 }
             }
         }

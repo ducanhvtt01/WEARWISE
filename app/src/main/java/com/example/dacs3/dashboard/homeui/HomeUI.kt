@@ -23,6 +23,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
@@ -39,6 +40,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -67,9 +70,28 @@ import com.google.ai.client.generativeai.type.generationConfig
 import io.github.jan.supabase.gotrue.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import org.json.JSONObject
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.util.Calendar
 import kotlin.math.roundToInt
+
+data class ScannedItemState(
+    val bitmap: Bitmap,
+    val json: JSONObject,
+    val displayText: String,
+    val isSelected: Boolean = true,
+    val antiImpulseAdvice: String? = null,
+    val isAdviceLoading: Boolean = false,
+    val priceInput: String = ""
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,10 +103,14 @@ fun HomeUI(
     onNavigateToTodo: () -> Unit = {},
     onNavigateToCalendar: () -> Unit = {},
     onNavigateToLaundry: () -> Unit = {},
+    onNavigateToScheduler: () -> Unit = {},
+    onNavigateToInsights: () -> Unit = {},
+    onNavigateToSwiper: () -> Unit = {},
+    onNavigateToStyleStudio: () -> Unit = {},
     viewModel: DashboardViewModel = viewModel()
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val selectedTab = viewModel.activeTab
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
@@ -95,9 +121,16 @@ fun HomeUI(
     var aiScanResultText by remember { mutableStateOf<String?>(null) }
     var rawScannedJson by remember { mutableStateOf<JSONObject?>(null) }
     var scannedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    
+    // Batch Scan States
+    var scannedItemsBatch by remember { mutableStateOf<List<ScannedItemState>>(emptyList()) }
+    var isBatchMode by remember { mutableStateOf(false) }
+    var batchScanProgress by remember { mutableStateOf(0) }
+    var batchTotal by remember { mutableStateOf(0) }
 
     var isCheckingDupe by remember { mutableStateOf(false) } // State khi đang hỏi "Có nên mua không"
     var antiImpulseAdvice by remember { mutableStateOf<String?>(null) } // Lưu lời khuyên của AI
+    var showAdvicePager by remember { mutableStateOf(false) } // Hiển thị Pager lời khuyên
     val closetItems by viewModel.clothingItems.collectAsState() // Lấy dữ liệu tủ đồ hiện tại
 
     val userId = supabase.auth.currentUserOrNull()?.id ?: ""
@@ -114,98 +147,115 @@ fun HomeUI(
     var showScanSourceSheet by remember { mutableStateOf(false) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        if (uri != null) {
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            isBatchMode = true
+            isAiScanning = true
+            batchTotal = uris.size
+            batchScanProgress = 0
+            scannedItemsBatch = emptyList()
+
             scope.launch(Dispatchers.IO) {
-                try {
-                    val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
-                            decoder.isMutableRequired = true
-                            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                        }
-                    } else {
-                        @Suppress("DEPRECATION")
-                        MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                val results = mutableListOf<ScannedItemState>()
+                val generativeModel = GenerativeModel(
+                    modelName = "gemini-3.1-flash-lite",
+                    apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
+                    generationConfig = generationConfig {
+                        temperature = 0.2f
+                        responseMimeType = "application/json"
                     }
+                )
 
-                    if (bitmap != null) {
-                        scannedBitmap = bitmap
-                        isAiScanning = true
-
-                        val generativeModel = GenerativeModel(
-                            modelName = "gemini-3.1-flash-lite",
-                            apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
-                            generationConfig = generationConfig {
-                                temperature = 0.2f
-                                responseMimeType = "application/json"
+                for (uri in uris) {
+                    try {
+                        var bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                                decoder.isMutableRequired = true
+                                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                             }
-                        )
-
-                        val prompt = """
-                            You are a high-end fashion AI analyzer. Inspect the clothing item in this image with extreme care and absolute precision.
-                            
-                            CRITICAL INSTRUCTIONS FOR ACCURACY:
-                            1. "name": Construct a descriptive, premium, and highly accurate name for the item (e.g. "Sleek Charcoal Crewneck Sweater", "Classic Olive Cargo Pants", "Minimalist White Leather Sneakers"). 
-                               - WARNING: DO NOT hallucinate brand names (like "Uniqlo", "Zara", "Nike") unless a brand logo is clearly visible in the image. If no logo is visible, use a pure, premium descriptive fashion name.
-                            2. "category": You must choose strictly from these exact standard categories:
-                               - "Top" (for shirts, t-shirts, blouses, sweaters, hoodies)
-                               - "Bottom" (for pants, jeans, shorts, skirts)
-                               - "Shoes" (for sneakers, boots, formal shoes, sandals)
-                               - "Outerwear" (for jackets, heavy coats, cardigans, blazers)
-                               - "Accessories" (for hats, bags, belts, sunglasses)
-                            3. "main_color": Identify the dominant base color with high accuracy (choose simple, standard, elegant names like: Black, White, Grey, Navy, Blue, Beige, Brown, Olive, Red, Pink, Yellow, Green, Purple). If the item has a pattern, select the primary background color.
-                            4. "seasons": Select the most appropriate seasons (choose from: "Spring", "Summer", "Autumn", "Winter"). Be logical: heavy coats belong to Winter/Autumn; shorts and tank tops belong to Summer/Spring; versatile tees belong to all.
-                            5. "occasions": Select logical occasions (choose from: "Casual", "Work", "Party", "Sport", "Formal") that perfectly fit the item's design style.
-
-                            Return strictly valid JSON with this schema:
-                            {
-                                "name": "Descriptive, brand-accurate item name",
-                                "category": "Top / Bottom / Shoes / Outerwear / Accessories",
-                                "main_color": "Highly accurate base color",
-                                "seasons": ["Season1", "Season2"],
-                                "occasions": ["Occasion1", "Occasion2"]
-                            }
-                        """.trimIndent()
-
-                        val response = generativeModel.generateContent(
-                            content {
-                                image(bitmap)
-                                text(prompt)
-                            }
-                        )
-
-                        val jsonString = response.text ?: "{}"
-                        val json = JSONObject(jsonString)
-
-                        rawScannedJson = json
-
-                        val itemName = json.optString("name", "Unknown Item")
-                        val itemCategory = json.optString("category", "N/A")
-                        val itemColor = json.optString("main_color", "N/A")
-                        val occasionsArray = json.optJSONArray("occasions")
-                        val itemOccasions = if (occasionsArray != null && occasionsArray.length() > 0) {
-                            List(occasionsArray.length()) { occasionsArray.getString(it) }.joinToString(", ")
                         } else {
-                            "N/A"
+                            @Suppress("DEPRECATION")
+                            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
                         }
 
-                        val seasonsArray = json.optJSONArray("seasons")
-                        val itemSeasons = if (seasonsArray != null && seasonsArray.length() > 0) {
-                            List(seasonsArray.length()) { seasonsArray.getString(it) }.joinToString(", ")
-                        } else {
-                            "N/A"
-                        }
+                        if (bitmap != null) {
+                            // Resize bitmap to max 1024px to prevent OutOfMemory and white screen crashes
+                            val maxSize = 1024
+                            if (bitmap.width > maxSize || bitmap.height > maxSize) {
+                                val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                                val newWidth = if (ratio > 1) maxSize else (maxSize * ratio).toInt()
+                                val newHeight = if (ratio > 1) (maxSize / ratio).toInt() else maxSize
+                                val scaledBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+                                if (bitmap != scaledBitmap) {
+                                    bitmap.recycle()
+                                    bitmap = scaledBitmap
+                                }
+                            }
 
-                        aiScanResultText = "$itemName\n• Category: $itemCategory\n• Color: $itemColor\n• Seasons: $itemSeasons\n• Occasions: $itemOccasions"
+                            val prompt = """
+                                You are a high-end fashion AI analyzer. Inspect the clothing item in this image with extreme care and absolute precision.
+                                
+                                CRITICAL INSTRUCTIONS FOR ACCURACY:
+                                1. "name": Construct a descriptive, premium, and highly accurate name for the item (e.g. "Sleek Charcoal Crewneck Sweater", "Classic Olive Cargo Pants", "Minimalist White Leather Sneakers"). 
+                                   - WARNING: DO NOT hallucinate brand names (like "Uniqlo", "Zara", "Nike") unless a brand logo is clearly visible in the image. If no logo is visible, use a pure, premium descriptive fashion name.
+                                2. "category": You must choose strictly from these exact standard categories:
+                                   - "Top" (for shirts, t-shirts, blouses, sweaters, hoodies)
+                                   - "Bottom" (for pants, jeans, shorts, skirts)
+                                   - "Shoes" (for sneakers, boots, formal shoes, sandals)
+                                   - "Outerwear" (for jackets, heavy coats, cardigans, blazers)
+                                   - "Accessories" (for hats, bags, belts, sunglasses)
+                                3. "main_color": Identify the dominant base color with high accuracy (choose simple, standard, elegant names like: Black, White, Grey, Navy, Blue, Beige, Brown, Olive, Red, Pink, Yellow, Green, Purple). If the item has a pattern, select the primary background color.
+                                4. "seasons": Select the most appropriate seasons (choose from: "Spring", "Summer", "Autumn", "Winter"). Be logical: heavy coats belong to Winter/Autumn; shorts and tank tops belong to Summer/Spring; versatile tees belong to all.
+                                5. "occasions": Select logical occasions (choose from: "Casual", "Work", "Party", "Sport", "Formal") that perfectly fit the item's design style.
+
+                                Return strictly valid JSON with this schema:
+                                {
+                                    "name": "Descriptive, brand-accurate item name",
+                                    "category": "Top / Bottom / Shoes / Outerwear / Accessories",
+                                    "main_color": "Highly accurate base color",
+                                    "seasons": ["Season1", "Season2"],
+                                    "occasions": ["Occasion1", "Occasion2"]
+                                }
+                            """.trimIndent()
+
+                            val response = generativeModel.generateContent(
+                                content {
+                                    image(bitmap)
+                                    text(prompt)
+                                }
+                            )
+
+                            val jsonString = response.text ?: "{}"
+                            val json = JSONObject(jsonString)
+
+                            val itemName = json.optString("name", "Unknown Item")
+                            val itemCategory = json.optString("category", "N/A")
+                            val itemColor = json.optString("main_color", "N/A")
+                            val occasionsArray = json.optJSONArray("occasions")
+                            val itemOccasions = if (occasionsArray != null && occasionsArray.length() > 0) {
+                                List(occasionsArray.length()) { occasionsArray.getString(it) }.joinToString(", ")
+                            } else {
+                                "N/A"
+                            }
+                            val seasonsArray = json.optJSONArray("seasons")
+                            val itemSeasons = if (seasonsArray != null && seasonsArray.length() > 0) {
+                                List(seasonsArray.length()) { seasonsArray.getString(it) }.joinToString(", ")
+                            } else {
+                                "N/A"
+                            }
+                            val displayText = "$itemName\n• Category: $itemCategory\n• Color: $itemColor\n• Seasons: $itemSeasons\n• Occasions: $itemOccasions"
+
+                            results.add(ScannedItemState(bitmap, json, displayText))
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    } finally {
+                        batchScanProgress++
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    aiScanResultText = "AI Scan Error: ${e.localizedMessage}"
-                    rawScannedJson = null
-                } finally {
-                    isAiScanning = false
                 }
+                scannedItemsBatch = results
+                isAiScanning = false
             }
         }
     }
@@ -214,10 +264,29 @@ fun HomeUI(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            scannedBitmap = bitmap
+            isBatchMode = true
             isAiScanning = true
+            if (scannedItemsBatch.isEmpty()) {
+                batchTotal = 1
+                batchScanProgress = 0
+            } else {
+                batchTotal += 1
+            }
             scope.launch(Dispatchers.IO) {
                 try {
+                    // Resize bitmap to max 1024px to prevent OutOfMemory and white screen crashes
+                    var cleanBitmap = bitmap
+                    val maxSize = 1024
+                    if (cleanBitmap.width > maxSize || cleanBitmap.height > maxSize) {
+                        val ratio = cleanBitmap.width.toFloat() / cleanBitmap.height.toFloat()
+                        val newWidth = if (ratio > 1) maxSize else (maxSize * ratio).toInt()
+                        val newHeight = if (ratio > 1) (maxSize / ratio).toInt() else maxSize
+                        val scaledBitmap = Bitmap.createScaledBitmap(cleanBitmap, newWidth, newHeight, true)
+                        if (cleanBitmap != scaledBitmap) {
+                            cleanBitmap = scaledBitmap
+                        }
+                    }
+
                     val generativeModel = GenerativeModel(
                         modelName = "gemini-3.1-flash-lite",
                         apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY,
@@ -255,7 +324,7 @@ fun HomeUI(
 
                     val response = generativeModel.generateContent(
                         content {
-                            image(bitmap)
+                            image(cleanBitmap)
                             text(prompt)
                         }
                     )
@@ -263,16 +332,12 @@ fun HomeUI(
                     val jsonString = response.text ?: "{}"
                     val json = JSONObject(jsonString)
 
-                    rawScannedJson = json
-
                     val itemName = json.optString("name", "Unknown Item")
                     val itemCategory = json.optString("category", "N/A")
                     val itemColor = json.optString("main_color", "N/A")
                     val occasionsArray = json.optJSONArray("occasions")
                     val itemOccasions = if (occasionsArray != null && occasionsArray.length() > 0) {
-                        List(occasionsArray.length()) { occasionsArray.getString(it) }.joinToString(
-                            ", "
-                        )
+                        List(occasionsArray.length()) { occasionsArray.getString(it) }.joinToString(", ")
                     } else {
                         "N/A"
                     }
@@ -284,13 +349,15 @@ fun HomeUI(
                         "N/A"
                     }
 
-                    aiScanResultText =
-                        "$itemName\n• Category: $itemCategory\n• Color: $itemColor\n• Seasons: $itemSeasons\n• Occasions: $itemOccasions"
+                    val displayText = "$itemName\n• Category: $itemCategory\n• Color: $itemColor\n• Seasons: $itemSeasons\n• Occasions: $itemOccasions"
+
+                    val newItem = ScannedItemState(cleanBitmap, json, displayText)
+                    scannedItemsBatch = scannedItemsBatch + newItem
 
                 } catch (e: Exception) {
-                    aiScanResultText = "AI Scan Error: ${e.localizedMessage}"
-                    rawScannedJson = null
+                    e.printStackTrace()
                 } finally {
+                    batchScanProgress++
                     isAiScanning = false
                 }
             }
@@ -472,7 +539,7 @@ fun HomeUI(
                                             indication = null,
                                             interactionSource = remember { MutableInteractionSource() }
                                         ) {
-                                            selectedTab = index
+                                            viewModel.activeTab = index
                                             hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                         }
                                         .padding(vertical = 8.dp),
@@ -553,7 +620,7 @@ fun HomeUI(
                                     onSuccess = {}
                                 )
                             },
-                            onNavigateToStylist = { selectedTab = 2 },
+                            onNavigateToStylist = { viewModel.activeTab = 2 },
                             onNavigateToSeasonStores = { season ->
                                 onOpenSeasonStores(season)
                             },
@@ -571,9 +638,15 @@ fun HomeUI(
 
                     1 -> ClosetScreen(
                         viewModel = viewModel,
-                        onNavigateToStylist = { selectedTab = 2 }
+                        onNavigateToStylist = { viewModel.activeTab = 2 },
+                        onNavigateToScheduler = onNavigateToScheduler,
+                        onNavigateToInsights = onNavigateToInsights,
+                        onNavigateToStyleStudio = onNavigateToStyleStudio
                     )
-                    2 -> StylistScreen(dashboardViewModel = viewModel)
+                    2 -> StylistScreen(
+                        dashboardViewModel = viewModel,
+                        onNavigateToSwiper = onNavigateToSwiper
+                    )
                     3 -> ProfileScreen(
                         isDarkMode = isDarkMode,
                         onThemeChange = onThemeChange,
@@ -586,13 +659,18 @@ fun HomeUI(
         }
 
         // --- HỘP THOẠI HIỂN THỊ KẾT QUẢ AI SCAN & CHỐNG MUA SẮM BỐC ĐỒNG ---
-        if (isAiScanning || aiScanResultText != null) {
+        if (isAiScanning || aiScanResultText != null || (isBatchMode && scannedItemsBatch.isNotEmpty())) {
             AlertDialog(
                 onDismissRequest = {
                     if (!isAiScanning && !isCheckingDupe) {
                         aiScanResultText = null
                         rawScannedJson = null
                         antiImpulseAdvice = null // Reset lời khuyên
+                        showAdvicePager = false
+                        isBatchMode = false
+                        scannedItemsBatch = emptyList()
+                        batchTotal = 0
+                        batchScanProgress = 0
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -601,8 +679,13 @@ fun HomeUI(
                         Icon(Icons.Default.Psychology, contentDescription = "AI")
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = if (isAiScanning) "AI is analyzing..."
-                            else if (isCheckingDupe) "Stylist is thinking..."
+                            text = if (isAiScanning) {
+                                if (isBatchMode && batchTotal > 1) "AI is analyzing... ($batchScanProgress/$batchTotal)"
+                                else "AI is analyzing..."
+                            }
+                            else if (isCheckingDupe && !isBatchMode) "Stylist is thinking..."
+                            else if (showAdvicePager) "Individual Stylist Advice"
+                            else if (isBatchMode) "Batch AI Stylist Result"
                             else "AI Stylist Result",
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
@@ -610,7 +693,7 @@ fun HomeUI(
                     }
                 },
                 text = {
-                    if (isAiScanning || isCheckingDupe) {
+                    if (isAiScanning || (!isBatchMode && isCheckingDupe)) {
                         // Hiển thị Lottie loading khi đang quét hoặc đang hỏi ý kiến
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -627,6 +710,142 @@ fun HomeUI(
                                 { prog1 },
                                 modifier = Modifier.size(120.dp)
                             )
+                        }
+                    } else if (showAdvicePager) {
+                        val selectedItems = scannedItemsBatch.filter { it.isSelected }
+                        val pagerState = rememberPagerState(pageCount = { selectedItems.size })
+                        Column(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            HorizontalPager(
+                                state = pagerState,
+                                modifier = Modifier.weight(1f)
+                            ) { page ->
+                                val item = selectedItems[page]
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).verticalScroll(rememberScrollState()),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    androidx.compose.foundation.Image(
+                                        bitmap = item.bitmap.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(150.dp).clip(RoundedCornerShape(12.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = item.displayText,
+                                        fontSize = 14.sp,
+                                        lineHeight = 18.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    if (item.isAdviceLoading) {
+                                        val comp1 by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.ai_loading))
+                                        val prog1 by animateLottieCompositionAsState(comp1, iterations = LottieConstants.IterateForever)
+                                        if (comp1 != null) LottieAnimation(comp1, { prog1 }, modifier = Modifier.size(100.dp))
+                                    } else if (item.antiImpulseAdvice != null) {
+                                        Card(
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(16.dp)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Filled.Warning, null, tint = MaterialTheme.colorScheme.secondary)
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text("Anti-Impulse Advice", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                                                }
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                MarkdownText(
+                                                    markdown = item.antiImpulseAdvice,
+                                                    fontSize = 14.sp,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Dấu chấm tròn chỉ báo trang (Page Indicator)
+                            if (selectedItems.size > 1) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.wrapContentHeight().fillMaxWidth().padding(bottom = 8.dp),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    repeat(selectedItems.size) { iteration ->
+                                        val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(horizontal = 3.dp)
+                                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                                .background(color)
+                                                .size(8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else if (isBatchMode) {
+                        // Hiển thị danh sách batch scan
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(scannedItemsBatch.size) { index ->
+                                val item = scannedItemsBatch[index]
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        val newList = scannedItemsBatch.toMutableList()
+                                        newList[index] = item.copy(isSelected = !item.isSelected)
+                                        scannedItemsBatch = newList
+                                    },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = item.isSelected,
+                                        onCheckedChange = { checked ->
+                                            val newList = scannedItemsBatch.toMutableList()
+                                            newList[index] = item.copy(isSelected = checked)
+                                            scannedItemsBatch = newList
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    androidx.compose.foundation.Image(
+                                        bitmap = item.bitmap.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.displayText,
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp,
+                                            maxLines = 4,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        OutlinedTextField(
+                                            value = item.priceInput,
+                                            onValueChange = { newValue ->
+                                                val newList = scannedItemsBatch.toMutableList()
+                                                newList[index] = item.copy(priceInput = newValue)
+                                                scannedItemsBatch = newList
+                                            },
+                                            label = { Text("Price (VND)", fontSize = 10.sp) },
+                                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                                            modifier = Modifier.fillMaxWidth().height(54.dp),
+                                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                            singleLine = true
+                                        )
+                                    }
+                                }
+                            }
                         }
                     } else {
                         // Hiển thị thông tin món đồ
@@ -677,11 +896,40 @@ fun HomeUI(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            //NÚT "SHOULD I BUY THIS?" (NẰM TRÊN CÙNG)
-                            if (rawScannedJson != null && scannedBitmap != null && antiImpulseAdvice == null) {
+                            if (isBatchMode && scannedItemsBatch.isNotEmpty() && antiImpulseAdvice == null && !showAdvicePager) {
                                 Button(
                                     onClick = {
-                                        isCheckingDupe = true
+                                        try {
+                                            cameraLauncher.launch(null)
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                            Toast.makeText(context, "Cannot open camera", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).height(48.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                                ) {
+                                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Scan More 📷", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+                            }
+
+                            //NÚT "SHOULD I BUY THIS?" (NẰM TRÊN CÙNG)
+                            val hasSelectedItems = isBatchMode && scannedItemsBatch.any { it.isSelected }
+                            val canAskAdvice = (!isBatchMode && rawScannedJson != null && scannedBitmap != null) || hasSelectedItems
+                            
+                            if (canAskAdvice && antiImpulseAdvice == null && !showAdvicePager) {
+                                val selectedCount = if (isBatchMode) scannedItemsBatch.count { it.isSelected } else 1
+                                val buttonText = if (selectedCount > 1) "Should I buy these?" else "Should I buy this?"
+                                
+                                Button(
+                                    onClick = {
+                                        if (isBatchMode) {
+                                            showAdvicePager = true
+                                        } else {
+                                            isCheckingDupe = true
+                                        }
                                         scope.launch(Dispatchers.IO) {
                                             try {
                                                 val generativeModel = GenerativeModel(
@@ -689,7 +937,6 @@ fun HomeUI(
                                                     apiKey = com.example.dacs3.BuildConfig.GEMINI_API_KEY
                                                 )
 
-                                                // Gom dữ liệu tủ đồ hiện tại thành chuỗi Text
                                                 val closetSummary =
                                                     closetItems.joinToString(separator = "; ") {
                                                         "${it.clothes_name} (${it.mainColor}, ${it.category})"
@@ -711,16 +958,46 @@ fun HomeUI(
                                                     Keep your tone chic, brutally honest, and deeply fashionable. Be concise.
                                                 """.trimIndent()
 
-                                                val response = generativeModel.generateContent(
-                                                    content {
-                                                        image(scannedBitmap!!)
-                                                        text(prompt)
+                                                if (isBatchMode) {
+                                                    val deferredList = scannedItemsBatch.mapIndexed { index, item ->
+                                                        if (item.isSelected) {
+                                                            async {
+                                                                val updatedList1 = scannedItemsBatch.toMutableList()
+                                                                updatedList1[index] = item.copy(isAdviceLoading = true)
+                                                                scannedItemsBatch = updatedList1
+
+                                                                try {
+                                                                    val response = generativeModel.generateContent(
+                                                                        content {
+                                                                            image(item.bitmap)
+                                                                            text(prompt)
+                                                                        }
+                                                                    )
+                                                                    val updatedList2 = scannedItemsBatch.toMutableList()
+                                                                    updatedList2[index] = updatedList2[index].copy(isAdviceLoading = false, antiImpulseAdvice = response.text)
+                                                                    scannedItemsBatch = updatedList2
+                                                                } catch (e: Exception) {
+                                                                    val updatedList3 = scannedItemsBatch.toMutableList()
+                                                                    updatedList3[index] = updatedList3[index].copy(isAdviceLoading = false, antiImpulseAdvice = "Error analyzing item.")
+                                                                    scannedItemsBatch = updatedList3
+                                                                }
+                                                            }
+                                                        } else {
+                                                            null
+                                                        }
                                                     }
-                                                )
-                                                antiImpulseAdvice = response.text
+                                                    deferredList.filterNotNull().awaitAll()
+                                                } else {
+                                                    val response = generativeModel.generateContent(
+                                                        content {
+                                                            image(scannedBitmap!!)
+                                                            text(prompt)
+                                                        }
+                                                    )
+                                                    antiImpulseAdvice = response.text
+                                                }
                                             } catch (e: Exception) {
-                                                antiImpulseAdvice =
-                                                    "Error analyzing closet. Better save your money just in case!"
+                                                if (!isBatchMode) antiImpulseAdvice = "Error analyzing closet."
                                             } finally {
                                                 isCheckingDupe = false
                                             }
@@ -739,7 +1016,7 @@ fun HomeUI(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        "Should I buy this?",
+                                        buttonText,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
                                     )
@@ -754,19 +1031,73 @@ fun HomeUI(
                                 // --- NÚT CLOSE (BÊN TRÁI) ---
                                 TextButton(
                                     onClick = {
-                                        aiScanResultText = null
-                                        rawScannedJson = null
-                                        antiImpulseAdvice = null
+                                        if (showAdvicePager) {
+                                            showAdvicePager = false
+                                            // Reset các trạng thái loading
+                                            scannedItemsBatch = scannedItemsBatch.map { it.copy(isAdviceLoading = false, antiImpulseAdvice = null) }
+                                        } else {
+                                            aiScanResultText = null
+                                            rawScannedJson = null
+                                            antiImpulseAdvice = null
+                                            isBatchMode = false
+                                            scannedItemsBatch = emptyList()
+                                            batchTotal = 0
+                                            batchScanProgress = 0
+                                        }
                                     }
                                 ) {
                                     Text(
-                                        "Close",
+                                        if (showAdvicePager) "Back to List" else "Close",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
 
                                 // --- NÚT ADD TO CLOSET (BÊN PHẢI) ---
-                                if (rawScannedJson != null && scannedBitmap != null) {
+                                if (isBatchMode && scannedItemsBatch.isNotEmpty()) {
+                                    Button(
+                                        onClick = {
+                                            val selectedItems = scannedItemsBatch.filter { it.isSelected }
+                                            if (selectedItems.isEmpty()) {
+                                                Toast.makeText(context, "Please select at least 1 item", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+                                            
+                                            val currentUserId = supabase.auth.currentUserOrNull()?.id ?: ""
+                                            scope.launch(Dispatchers.IO) {
+                                                selectedItems.forEach { item ->
+                                                    val json = item.json
+                                                    val itemToSave = ClothingItem(
+                                                        userId = currentUserId,
+                                                        clothes_name = json.optString("name", "Unknown Item"),
+                                                        category = json.optString("category", "Other"),
+                                                        mainColor = json.optString("main_color", "Unknown"),
+                                                        seasons = List(json.optJSONArray("seasons")?.length() ?: 0) { json.optJSONArray("seasons")?.getString(it) ?: "" },
+                                                        occasions = List(json.optJSONArray("occasions")?.length() ?: 0) { json.optJSONArray("occasions")?.getString(it) ?: "" },
+                                                        imageUrl = "",
+                                                        price = item.priceInput.toFloatOrNull()
+                                                    )
+                                                    viewModel.uploadAndSaveClothes(item.bitmap, itemToSave) {}
+                                                }
+                                                
+                                                launch(Dispatchers.Main) {
+                                                    aiScanResultText = null
+                                                    rawScannedJson = null
+                                                    scannedBitmap = null
+                                                    showAdvicePager = false
+                                                    antiImpulseAdvice = null
+                                                    isBatchMode = false
+                                                    scannedItemsBatch = emptyList()
+                                                    batchTotal = 0
+                                                    batchScanProgress = 0
+                                                    Toast.makeText(context, "Added ${selectedItems.size} items to closet", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        val count = scannedItemsBatch.count { it.isSelected }
+                                        Text("Add Selected ($count)")
+                                    }
+                                } else if (!isBatchMode && rawScannedJson != null && scannedBitmap != null) {
                                     Button(
                                         onClick = {
                                             val json = rawScannedJson!!
@@ -804,6 +1135,8 @@ fun HomeUI(
                                                 rawScannedJson = null
                                                 scannedBitmap = null
                                                 antiImpulseAdvice = null
+                                                isBatchMode = false
+                                                scannedItemsBatch = emptyList()
                                             }
                                         }
                                     ) {
@@ -850,13 +1183,13 @@ fun HomeUI(
                 Icon(
                     Icons.Filled.CameraAlt,
                     "AI Scan",
-                    tint = if (isDarkMode) Color.DarkGray else Color.White
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     "AI Scan",
                     fontWeight = FontWeight.Bold,
-                    color = if (isDarkMode) Color.DarkGray else Color.White
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
@@ -955,6 +1288,32 @@ fun HomeUI(
         }
     }
 }
+}
+
+suspend fun removeBackgroundLocal(bitmap: Bitmap): Bitmap = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+    try {
+        val options = SubjectSegmenterOptions.Builder()
+            .enableForegroundBitmap()
+            .build()
+        val segmenter = SubjectSegmentation.getClient(options)
+        val image = InputImage.fromBitmap(bitmap, 0)
+        segmenter.process(image)
+            .addOnSuccessListener { result ->
+                val fg = result.foregroundBitmap
+                if (fg != null) {
+                    continuation.resume(fg)
+                } else {
+                    continuation.resume(bitmap)
+                }
+            }
+            .addOnFailureListener { e ->
+                e.printStackTrace()
+                continuation.resume(bitmap)
+            }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        continuation.resume(bitmap)
+    }
 }
 
 

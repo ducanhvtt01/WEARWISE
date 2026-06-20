@@ -57,7 +57,7 @@ class StyleMatcherService(private val geminiApiKey: String) {
             for ((category, color) in targetItems) {
                 // Tìm món đồ trong tủ đồ có Category khớp, KHÔNG bị Dislike (-1), và độ tương đồng màu sắc cao nhất
                 val bestMatch = userWardrobe
-                    .filter { it.category.equals(category, true) && feedbackMap[it.id] != -1 }
+                    .filter { it.category.equals(category, true) && (feedbackMap[it.id] ?: 0) >= 0 }
                     .maxByOrNull { rs.getSimilarityScore(it, category, color) }
                 
                 if (bestMatch != null && !matches.contains(bestMatch)) {

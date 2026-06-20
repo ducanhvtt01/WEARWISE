@@ -86,10 +86,12 @@ class OutfitRecommendationService {
                 itemScore += if (isExplorationMode) sim * 0.5f else sim
             }
 
-            // Điểm phản hồi: Ưu tiên Like, loại bỏ Dislike
-            when (feedbackMap[item.id]) {
-                1 -> itemScore += 0.5f
-                -1 -> itemScore -= 2.0f
+            // Điểm phản hồi: Ưu tiên Like, loại bỏ Dislike (tỉ lệ theo điểm phản hồi tích lũy)
+            val fb = feedbackMap[item.id] ?: 0
+            if (fb > 0) {
+                itemScore += 0.5f * fb
+            } else if (fb < 0) {
+                itemScore += 2.0f * fb // fb < 0 sẽ làm giảm điểm
             }
 
             // Điểm xu hướng
@@ -150,13 +152,18 @@ class OutfitRecommendationService {
         }
         
         // 5. Phản hồi từ người dùng (Feedback Loop)
-        if (feedbackMap[top.id] == -1) score -= 1.0f
-        if (feedbackMap[bottom.id] == -1) score -= 1.0f
-        if (feedbackMap[shoe.id] == -1) score -= 1.0f
-        
-        if (feedbackMap[top.id] == 1) score += 0.2f
-        if (feedbackMap[bottom.id] == 1) score += 0.2f
-        if (feedbackMap[shoe.id] == 1) score += 0.2f
+        val topFb = feedbackMap[top.id] ?: 0
+        val bottomFb = feedbackMap[bottom.id] ?: 0
+        val shoeFb = feedbackMap[shoe.id] ?: 0
+
+        if (topFb < 0) score += 1.0f * topFb
+        else if (topFb > 0) score += 0.2f * topFb
+
+        if (bottomFb < 0) score += 1.0f * bottomFb
+        else if (bottomFb > 0) score += 0.2f * bottomFb
+
+        if (shoeFb < 0) score += 1.0f * shoeFb
+        else if (shoeFb > 0) score += 0.2f * shoeFb
         
         // Phạt đồ mới mặc gần đây để tránh lặp (Temporal Recency Penalty)
         if (top.id != null && recentClothingIds.contains(top.id)) score -= 0.4f
