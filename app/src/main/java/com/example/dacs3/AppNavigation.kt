@@ -124,7 +124,7 @@ fun AppNavigation(
                 }
             }
         ) {
-            RequestAppPermissions() // Lưu ý: Đảm bảo bạn đã có hàm này ở đâu đó trong project
+            RequestAppPermissions() 
 
             HomeUI(
                 isDarkMode = isDarkMode,
@@ -205,8 +205,6 @@ fun AppNavigation(
                 }
             )
         ) {
-            // Chú ý: Ở đây gọi trực tiếp StylistScreen() không truyền ViewModel,
-            // đảm bảo bên trong file StylistScreen.kt bạn đã khai báo viewModel() làm mặc định.
             StylistScreen()
         }
 

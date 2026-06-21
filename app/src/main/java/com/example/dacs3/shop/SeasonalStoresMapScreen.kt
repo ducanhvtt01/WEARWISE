@@ -42,10 +42,14 @@ fun SeasonalStoresMapScreen(
 ) {
     val context = LocalContext.current
 
-    // Có thể chỉnh bán kính ở đây.
-    // 8000f = 8km, 12000f = 12km, 20000f = 20km.
+    // ==========================================
+    // CỤM 1: CẤU HÌNH CÁC GIÁ TRỊ CÓ THỂ SỬA (CONFIGURABLE VALUES)
+    // - Bán kính quét cửa hàng (radiusInMeters). Mặc định là 20.000m (20km).
+    // - Có thể tăng/giảm giá trị này để mở rộng hoặc thu hẹp phạm vi quét.
+    // ==========================================
     val radiusInMeters = 20000f
 
+    // Trạng thái tọa độ thiết bị (Latitude và Longitude)
     var userLocation by remember {
         mutableStateOf<LatLng?>(null)
     }
@@ -58,6 +62,11 @@ fun SeasonalStoresMapScreen(
         mutableStateOf<String?>(null)
     }
 
+    // ==========================================
+    // CỤM 2: QUẢN LÝ QUYỀN TRUY CẬP VỊ TRÍ (LOCATION PERMISSIONS)
+    // - Kiểm tra trạng thái cấp quyền truy cập vị trí chính xác (FINE_LOCATION) 
+    //   hoặc tương đối (COARSE_LOCATION) của ứng dụng.
+    // ==========================================
     var locationPermissionGranted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -71,6 +80,7 @@ fun SeasonalStoresMapScreen(
         )
     }
 
+    // Trình khởi chạy yêu cầu cấp quyền vị trí
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -84,6 +94,7 @@ fun SeasonalStoresMapScreen(
         }
     }
 
+    // Tự động kích hoạt hộp thoại yêu cầu cấp quyền vị trí nếu chưa được cấp
     LaunchedEffect(Unit) {
         if (!locationPermissionGranted) {
             permissionLauncher.launch(
@@ -95,6 +106,12 @@ fun SeasonalStoresMapScreen(
         }
     }
 
+    // ==========================================
+    // CỤM 3: TRUY VẤN VỊ TRÍ THỰC TẾ CỦA THIẾT BỊ (GET CURRENT GPS LOCATION)
+    // - Sử dụng FusedLocationProviderClient của Google Play Services.
+    // - Yêu cầu độ chính xác cao (Priority.PRIORITY_HIGH_ACCURACY).
+    // - Có thể sửa đổi độ chính xác hoặc cấu hình thời gian chờ (Timeout) tại đây.
+    // ==========================================
     LaunchedEffect(locationPermissionGranted) {
         if (locationPermissionGranted) {
             isLoadingLocation = true
@@ -104,6 +121,7 @@ fun SeasonalStoresMapScreen(
                 val fusedLocationClient =
                     LocationServices.getFusedLocationProviderClient(context)
 
+                // Lấy vị trí GPS của thiết bị
                 val location = fusedLocationClient.getCurrentLocation(
                     Priority.PRIORITY_HIGH_ACCURACY,
                     null
@@ -125,6 +143,12 @@ fun SeasonalStoresMapScreen(
         }
     }
 
+    // ==========================================
+    // CỤM 4: TRUY VẤN DANH SÁCH CỬA HÀNG THEO MÙA (FETCH STORES FROM DATA SOURCE)
+    // - Gọi hàm getStoresBySeason từ repository để lấy toàn bộ cửa hàng thuộc mùa hiện tại.
+    // - Có thể sửa: "provinceCode" hiện tại cố định là "DN" (Đà Nẵng). 
+    //   Có thể chuyển thành tham số động để mở rộng quy mô tỉnh thành khác.
+    // ==========================================
     val allDaNangStores = remember(season) {
         SeasonalStoreRepository.getStoresBySeason(
             context = context,
@@ -133,11 +157,19 @@ fun SeasonalStoresMapScreen(
         )
     }
 
+    // ==========================================
+    // CỤM 5: TÍNH KHOẢNG CÁCH & LỌC CỬA HÀNG TRONG BÁN KÍNH (RADIUS FILTERING)
+    // - Sử dụng hàm Location.distanceBetween để tính khoảng cách đường chim bay 
+    //   từ vị trí GPS thiết bị đến tọa độ từng cửa hàng.
+    // - Lọc các cửa hàng có khoảng cách nhỏ hơn hoặc bằng bán kính thiết lập (radiusInMeters).
+    // - Có thể sửa: Nếu userLocation = null (do tắt GPS hoặc chưa cấp quyền), 
+    //   hệ thống sẽ lấy tối đa 30 cửa hàng mặc định làm phương án dự phòng.
+    // ==========================================
     val stores = remember(allDaNangStores, userLocation) {
         val currentLocation = userLocation
 
         if (currentLocation == null) {
-            // Fallback: nếu chưa lấy được GPS, chỉ lấy tối đa 30 shop để map không nặng.
+            // Fallback: nếu chưa lấy được GPS, chỉ lấy tối đa 30 shop để tránh làm quá tải bản đồ.
             allDaNangStores.take(30)
         } else {
             allDaNangStores.filter { store ->
@@ -156,8 +188,15 @@ fun SeasonalStoresMapScreen(
         }
     }
 
+    // Tọa độ mặc định ở Trung tâm Đà Nẵng
     val daNangDefaultPosition = LatLng(16.0678, 108.2208)
 
+    // ==========================================
+    // CỤM 6: QUẢN LÝ KHUNG NHÌN BẢN ĐỒ (CAMERA POSITION MANAGEMENT)
+    // - Khởi tạo vị trí Camera mặc định tập trung vào vị trí thiết bị, hoặc cửa hàng đầu tiên, hoặc tọa độ mặc định Đà Nẵng.
+    // - Tự động di chuyển camera đến vị trí thiết bị khi định vị thành công.
+    // - Có thể sửa: Độ phóng thu (zoom level) hiện tại được cấu hình là 13f (khi khởi tạo) và 14f (khi có vị trí).
+    // ==========================================
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
             userLocation ?: stores.firstOrNull()?.let {
@@ -176,6 +215,7 @@ fun SeasonalStoresMapScreen(
         }
     }
 
+    // Quản lý cửa hàng đang được chọn để hiển thị chi tiết
     var selectedStore by remember {
         mutableStateOf<SeasonalStoreDto?>(null)
     }
@@ -187,6 +227,11 @@ fun SeasonalStoresMapScreen(
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
+        // ==========================================
+        // CỤM 7: THANH TIÊU ĐỀ TRÊN CÙNG (TOP APP BAR)
+        // - Hiển thị tên chức năng, mùa hiện tại, số lượng cửa hàng và bán kính tìm kiếm.
+        // - Cung cấp nút quay lại giao diện trước đó.
+        // ==========================================
         SeasonalStoreMapTopBar(
             season = season,
             onBack = onBack,
@@ -199,6 +244,12 @@ fun SeasonalStoresMapScreen(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
+            // ==========================================
+            // CỤM 8: THÀNH PHẦN BẢN ĐỒ GOOGLE MAPS (GOOGLE MAPS COMPONENT)
+            // - Hiển thị bản đồ, nút định vị vị trí hiện tại và toolbar chỉ đường.
+            // - Đánh dấu (Marker) vị trí của thiết bị và vị trí từng cửa hàng.
+            // - Phản hồi sự kiện nhấn chọn cửa hàng để cập nhật trạng thái hiển thị.
+            // ==========================================
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
@@ -234,6 +285,10 @@ fun SeasonalStoresMapScreen(
                 }
             }
 
+            // ==========================================
+            // CỤM 9: THẺ TRẠNG THÁI TRÊN BẢN ĐỒ (STATUS CARDS ON MAP)
+            // - Hiển thị các thông báo trạng thái: đang định vị, lỗi GPS, hoặc không tìm thấy cửa hàng.
+            // ==========================================
             if (isLoadingLocation) {
                 LocationStatusCard(
                     text = "Getting your current location...",
@@ -261,6 +316,11 @@ fun SeasonalStoresMapScreen(
                 )
             }
 
+            // ==========================================
+            // CỤM 10: THẺ XEM TRƯỚC CỬA HÀNG ĐANG CHỌN (STORE PREVIEW CARD)
+            // - Hiển thị thông tin tóm tắt cửa hàng (đánh giá, khoảng cách, sản phẩm tiêu biểu)
+            //   ở phía dưới bản đồ khi có cửa hàng được chọn.
+            // ==========================================
             selectedStore?.let { store ->
                 StorePreviewCard(
                     store = store,
@@ -272,6 +332,11 @@ fun SeasonalStoresMapScreen(
             }
         }
 
+        // ==========================================
+        // CỤM 11: DANH SÁCH CỬA HÀNG CUỘN DƯỚI CHÂN TRANG (BOTTOM SCROLLABLE STORE LIST)
+        // - Hiển thị toàn bộ danh sách cửa hàng tìm được dưới dạng danh sách cuộn dọc.
+        // - Cho phép nhấn chọn cửa hàng để định tâm camera bản đồ vào tọa độ của cửa hàng đó.
+        // ==========================================
         SeasonalStoreList(
             stores = stores,
             season = season,
@@ -287,6 +352,11 @@ fun SeasonalStoresMapScreen(
     }
 }
 
+// ==========================================
+// THÀNH PHẦN HỖ TRỢ 1: THANH TIÊU ĐỀ TRÊN BẢN ĐỒ (TOP BAR)
+// - Hiển thị tên chức năng, thông tin mùa, số lượng shop và bán kính tìm kiếm.
+// - Hỗ trợ nút điều hướng quay lại.
+// ==========================================
 @Composable
 private fun SeasonalStoreMapTopBar(
     season: String,
@@ -326,6 +396,10 @@ private fun SeasonalStoreMapTopBar(
     }
 }
 
+// ==========================================
+// THÀNH PHẦN HỖ TRỢ 2: THẺ THÔNG BÁO TRẠNG THÁI (LOCATION STATUS CARD)
+// - Hiển thị các đoạn văn bản trạng thái (đang định vị, thông tin lỗi, không tìm thấy shop).
+// ==========================================
 @Composable
 private fun LocationStatusCard(
     text: String,
@@ -349,6 +423,11 @@ private fun LocationStatusCard(
     }
 }
 
+// ==========================================
+// THÀNH PHẦN HỖ TRỢ 3: THẺ XEM TRƯỚC CHI TIẾT CỬA HÀNG (STORE PREVIEW CARD)
+// - Hiển thị chi tiết về tên shop, đánh giá sao, khoảng cách địa lý, địa chỉ cụ thể 
+//   và danh sách các sản phẩm quần áo đặc trưng của mùa hiện tại tại shop đó.
+// ==========================================
 @Composable
 private fun StorePreviewCard(
     store: SeasonalStoreDto,
@@ -454,6 +533,11 @@ private fun StorePreviewCard(
     }
 }
 
+// ==========================================
+// THÀNH PHẦN HỖ TRỢ 4: DANH SÁCH CỬA HÀNG CUỘN (SCROLLABLE LIST)
+// - Hiển thị danh sách dọc chứa các shop gần vị trí.
+// - Nhấp chọn vào mỗi dòng sẽ cập nhật trạng thái lựa chọn và di chuyển camera bản đồ đến đó.
+// ==========================================
 @Composable
 private fun SeasonalStoreList(
     stores: List<SeasonalStoreDto>,

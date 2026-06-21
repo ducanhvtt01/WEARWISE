@@ -94,6 +94,10 @@ data class ScannedItemState(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
+// ==========================================
+// MÀN HÌNH CHÍNH (HOMEUI)
+// - Quản lý cấu trúc giao diện chính bao gồm Drawer, Bottom Navigation, định vị và quét ảnh AI.
+// ==========================================
 @Composable
 fun HomeUI(
     isDarkMode: Boolean = false,
@@ -122,7 +126,7 @@ fun HomeUI(
     var rawScannedJson by remember { mutableStateOf<JSONObject?>(null) }
     var scannedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     
-    // Batch Scan States
+    // Trạng thái quét hàng loạt (Batch Scan States)
     var scannedItemsBatch by remember { mutableStateOf<List<ScannedItemState>>(emptyList()) }
     var isBatchMode by remember { mutableStateOf(false) }
     var batchScanProgress by remember { mutableStateOf(0) }
@@ -134,6 +138,7 @@ fun HomeUI(
     val closetItems by viewModel.clothingItems.collectAsState() // Lấy dữ liệu tủ đồ hiện tại
 
     val userId = supabase.auth.currentUserOrNull()?.id ?: ""
+    // Tự động tải thông tin hồ sơ và danh sách tủ đồ khi nhận được mã người dùng (userId)
     LaunchedEffect(userId) {
         if (userId.isNotEmpty()) {
             viewModel.getProfile(userId)
@@ -146,6 +151,7 @@ fun HomeUI(
 
     var showScanSourceSheet by remember { mutableStateOf(false) }
 
+    // Trình khởi chạy bộ chọn ảnh từ thư viện để gửi lên AI phân tích trang phục
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
@@ -388,6 +394,10 @@ fun HomeUI(
     }
 
 
+    // ==========================================
+    // CỤM 3: KHUNG ĐIỀU HƯỚNG TRƯỢT (NAVIGATION DRAWER)
+    // - Menu trượt từ cạnh bên chứa các lối tắt đến Calendar, Laundry và To-Do List.
+    // ==========================================
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen,
@@ -417,6 +427,7 @@ fun HomeUI(
 
                     HorizontalDivider(modifier = Modifier.padding(bottom = 24.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
+                    // Lối tắt đi đến giao diện Nhật ký & Lịch trình
                     NavigationDrawerItem(
                         label = { Text("🗓️  Calendar & Outfit Diary", fontWeight = FontWeight.Bold) },
                         selected = false,
@@ -428,6 +439,7 @@ fun HomeUI(
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
 
+                    // Lối tắt đi đến giao diện Theo dõi giặt là
                     NavigationDrawerItem(
                         label = { Text("🧺  Laundry Tracker", fontWeight = FontWeight.Bold) },
                         selected = false,
@@ -439,6 +451,7 @@ fun HomeUI(
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
 
+                    // Lối tắt đi đến giao diện Danh sách việc cần làm
                     NavigationDrawerItem(
                         label = { Text("📝  Wardrobe To-Do List", fontWeight = FontWeight.Bold) },
                         selected = false,
@@ -481,7 +494,10 @@ fun HomeUI(
                     Icons.Filled.Person
                 )
 
-                // ─── FLOATING GLASSY NAVIGATION BAR ───
+                // ==========================================
+                // CỤM 4: THANH ĐIỀU HƯỚNG DƯỚI CÙNG (FLOATING GLASSY NAVIGATION BAR)
+                // - Thanh Bottom Navigation phong cách kính mờ (Glassmorphism) chứa 4 Tab chính.
+                // ==========================================
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -598,6 +614,7 @@ fun HomeUI(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
+                // Điều hướng hiển thị màn hình tương ứng với tab được chọn
                 when (selectedTab) {
                     0 -> {
                         val topFavoriteClothes by viewModel.topFavoriteClothes.collectAsState()
