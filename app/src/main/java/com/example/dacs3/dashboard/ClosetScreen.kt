@@ -740,6 +740,7 @@ fun ClosetScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(100.dp)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { onNavigateToScheduler() },
                             shape = RoundedCornerShape(20.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
@@ -779,6 +780,7 @@ fun ClosetScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(100.dp)
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { onNavigateToInsights() },
                             shape = RoundedCornerShape(20.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)),
@@ -821,6 +823,7 @@ fun ClosetScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(84.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable { onNavigateToStyleStudio() },
                         shape = RoundedCornerShape(20.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)),
@@ -876,11 +879,13 @@ fun ClosetScreen(
 
                 item {
                     Card(
-                        modifier = Modifier.height(200.dp),
+                        modifier = Modifier
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable { showAddManualSheet = true },
                         shape = RoundedCornerShape(20.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-                        onClick = { showAddManualSheet = true }
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                     ) {
                         Column(
                             modifier = Modifier.fillMaxSize(),

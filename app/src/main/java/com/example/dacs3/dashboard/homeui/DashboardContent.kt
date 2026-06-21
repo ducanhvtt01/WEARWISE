@@ -708,6 +708,7 @@ fun DashboardContent(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable { onNavigateToCalendar() }
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -818,6 +819,7 @@ fun DashboardContent(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable { onNavigateToCalendar() }
                     ) {
                         Row(
@@ -887,6 +889,7 @@ fun DashboardContent(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                     modifier = Modifier
                         .weight(1f)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { onNavigateToLaundry() }
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -919,6 +922,7 @@ fun DashboardContent(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                     modifier = Modifier
                         .weight(1f)
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { onNavigateToTodo() }
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -953,18 +957,17 @@ fun DashboardContent(
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
-                        alpha = 0.5f
-                    )
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onNavigateToStylist() }
                     .shadow(
                         12.dp,
                         RoundedCornerShape(24.dp),
                         spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                     )
+                    .clip(RoundedCornerShape(24.dp))
+                    .clickable { onNavigateToStylist() }
             ) {
                 Row(
                     modifier = Modifier

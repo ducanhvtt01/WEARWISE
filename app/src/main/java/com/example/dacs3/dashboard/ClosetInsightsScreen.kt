@@ -432,6 +432,7 @@ fun ClosetInsightsScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
                             .clickable {
                                 editingItem = item
                                 editPriceText = if (price > 0) price.toInt().toString() else ""

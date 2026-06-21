@@ -640,6 +640,7 @@ fun StylistScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(bottom = 16.dp)
+                                            .clip(RoundedCornerShape(20.dp))
                                             .clickable { onNavigateToSwiper() }
                                             .shadow(8.dp, RoundedCornerShape(20.dp)),
                                         shape = RoundedCornerShape(20.dp),
@@ -1312,6 +1313,7 @@ fun StylistScreen(
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
                                             .clickable { isExpanded = !isExpanded }
                                     ) {
                                         Column(modifier = Modifier.padding(16.dp)) {

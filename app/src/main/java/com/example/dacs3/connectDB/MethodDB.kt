@@ -741,6 +741,9 @@ class DashboardViewModel : ViewModel() {
                     4. DO NOT select duplicates (e.g. two Bottoms, two Tops, or two Shoes).
                     5. The IDs you return MUST exactly match the simple numerical IDs provided above (e.g. 1, 4, 7).
                     6. STRONGLY PRIORITIZE items with a high "User Rating" (the higher, the better). DO NOT select items with a negative "User Rating".
+                    7. STRICT DRESS CODE COMPLIANCE: You MUST strictly adhere to the dress code of the Event. 
+                       - For academic, work, or formal settings (e.g., University, Presentation, Library, Internship, Dinner Date, Party), ABSOLUTELY NO short pants, tank tops, or overly casual gym wear.
+                       - For active or outdoor events (e.g., Gym Session, Hiking, Beach Day), prioritize activewear, shorts, and breathable items.
                     
                     Return ONLY the IDs separated by commas. Do NOT return any other text, markdown, or explanations.
                     
