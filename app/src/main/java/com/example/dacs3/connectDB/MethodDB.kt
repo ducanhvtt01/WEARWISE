@@ -182,6 +182,7 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
+    // 👇 [THI] SỬA LOGIC KẾT NỐI DATABASE (THÊM ĐỒ) Ở ĐÂY 👇
     fun addClothing(item: ClothingItem, onSuccess: () -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -235,6 +236,7 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
+    // 👇 [THI] SỬA LOGIC KẾT NỐI DATABASE (XOÁ ĐỒ) Ở ĐÂY 👇
     fun deleteClothingItem(item: ClothingItem) {
         // Cập nhật UI ngay lập tức (Optimistic Update) để hiệu ứng vuốt xóa cực kỳ mượt mà
         val currentList = _clothingItems.value.toMutableList()
@@ -901,6 +903,7 @@ class DashboardViewModel : ViewModel() {
         }
     }
 
+    // 👇 [THI] SỬA LOGIC KẾT NỐI DATABASE (GIẶT ĐỒ) Ở ĐÂY 👇
     fun washClothingItems(clothingIds: List<String>, targetStatus: String = "AVAILABLE", onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

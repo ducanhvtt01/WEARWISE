@@ -770,6 +770,8 @@ fun TodoScreen(
     }
 }
 
+// 👇 [THI] SỬA GIAO DIỆN THẺ (CARD) / DANH SÁCH (LIST) Ở ĐÂY 👇
+// Sửa màu sắc, viền, khoảng cách của từng công việc trong danh sách
 @Composable
 fun TodoCard(
     todo: TodoDbModel,

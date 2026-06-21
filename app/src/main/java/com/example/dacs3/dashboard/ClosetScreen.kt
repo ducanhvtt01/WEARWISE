@@ -192,9 +192,15 @@ fun ClosetScreen(
             AddManualSheetContent(
                 onSave = { newItem, bitmap ->
                     if (bitmap != null) {
-                        viewModel.uploadAndSaveClothes(bitmap, newItem) {}
+                        viewModel.uploadAndSaveClothes(bitmap, newItem) {
+                            // 👇 [THI] THÊM TOAST/SNACKBAR THÔNG BÁO Ở ĐÂY 👇
+                            // VD: Toast.makeText(context, "Thêm thành công!", Toast.LENGTH_SHORT).show()
+                        }
                     } else {
-                        viewModel.addClothing(newItem) {}
+                        viewModel.addClothing(newItem) {
+                            // 👇 [THI] THÊM TOAST/SNACKBAR THÔNG BÁO Ở ĐÂY 👇
+                            // VD: Toast.makeText(context, "Thêm thành công!", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     showAddManualSheet = false
                     scope.launch { snackbarHostState.showSnackbar("Added new item!") }
@@ -725,6 +731,8 @@ fun ClosetScreen(
             }
 
             // --- GRID ITEMS ---
+            // 👇 [THI] SỬA GIAO DIỆN THẺ (CARD) / DANH SÁCH (LIST) Ở ĐÂY 👇
+            // Sửa số lượng cột ở cells = GridCells.Fixed(2) -> thành 3, 4 tùy ý
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -1078,6 +1086,8 @@ fun ClosetScreen(
     }
 }
 
+// 👇 [THI] SỬA GIAO DIỆN THẺ (CARD) / DANH SÁCH (LIST) Ở ĐÂY 👇
+// Hàm này vẽ ra 1 cái thẻ quần áo. Sửa viền, đổ bóng, kích thước ảnh ở đây.
 @Composable
 fun ClosetItemCard(
     item: ClothingItem,
@@ -1293,6 +1303,7 @@ fun CustomChip(
 
 // --- GIAO DIỆN BOTTOM SHEET CHI TIẾT ---
 @OptIn(ExperimentalMaterial3Api::class)
+// 👇 [THI] SỬA GIAO DIỆN THỂ HIỆN CHI TIẾT MÓN ĐỒ Ở ĐÂY 👇
 @Composable
 fun ItemDetailSheetContent(
     item: ClothingItem,
@@ -1776,6 +1787,7 @@ fun AddManualSheetContent(
 
         Spacer(modifier = Modifier.height(32.dp))
 
+        // 👇 [THI] SỬA MÀU SẮC / CHỮ CỦA NÚT Ở ĐÂY 👇
         Button(
             onClick = {
                 val userId = supabase.auth.currentSessionOrNull()?.user?.id ?: ""

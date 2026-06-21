@@ -182,6 +182,7 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
             )
         }
 
+        // 👇 [THI] SỬA MÀU SẮC / CHỮ / NÚT ĐĂNG NHẬP Ở ĐÂY 👇
         Button(
             onClick = {
                 errorMessage = null
@@ -199,6 +200,8 @@ fun LoginSheet(onNavigateToSignUp: () -> Unit, onLoginSuccess: () -> Unit) {
 
                     when (result) {
                         LoginResult.SUCCESS -> {
+                            // 👇 [THI] THÊM TOAST/SNACKBAR THÔNG BÁO Ở ĐÂY 👇
+                            // Toast.makeText(context, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
                             onLoginSuccess()
                         }
                         LoginResult.EMAIL_NOT_CONFIRMED -> {

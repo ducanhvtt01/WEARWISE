@@ -196,6 +196,7 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
 
+        // 👇 [THI] SỬA MÀU SẮC / CHỮ / NÚT ĐĂNG KÝ Ở ĐÂY 👇
         Button(
             onClick = {
                 errorMessage = null
@@ -223,9 +224,12 @@ fun RegisterSheet(onBackToLogin: () -> Unit, onRegisterSuccess: () -> Unit) {
                 scope.launch {
                     val error = onRegister(email, password, name)
                     if (error == null) {
+                        // 👇 [THI] THÊM TOAST/SNACKBAR THÔNG BÁO Ở ĐÂY 👇
                         Toast.makeText(context, "Registration successful! Please check your email to confirm your account.", Toast.LENGTH_LONG).show()
                         onRegisterSuccess()
                     } else {
+                        // 👇 [THI] BẮT LỖI / HIỂN THỊ GIAO DIỆN LỖI Ở ĐÂY 👇
+                        // Hiển thị text báo lỗi khi đăng ký thất bại
                         errorMessage = error
                     }
                 }

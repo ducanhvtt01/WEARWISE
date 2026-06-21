@@ -903,6 +903,7 @@ fun HomeUI(
                                             cameraLauncher.launch(null)
                                         } catch (e: Exception) {
                                             e.printStackTrace()
+                                            // 👇 [THI] BẮT LỖI / HIỂN THỊ GIAO DIỆN LỖI Ở ĐÂY 👇
                                             Toast.makeText(context, "Cannot open camera", Toast.LENGTH_SHORT).show()
                                         }
                                     },

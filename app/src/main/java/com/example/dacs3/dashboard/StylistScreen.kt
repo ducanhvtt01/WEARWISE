@@ -2371,6 +2371,8 @@ fun ChatBubble(
                 modifier = Modifier
                     .clip(bubbleShape)
                     .then(
+                        // 👇 [THI] BẮT LỖI / HIỂN THỊ GIAO DIỆN LỖI Ở ĐÂY 👇
+                        // Sửa màu nền của đoạn chat báo lỗi (khi isError = true)
                         if (message.isError) {
                             Modifier.background(MaterialTheme.colorScheme.errorContainer)
                         } else if (message.isFromUser) {
@@ -2409,6 +2411,7 @@ fun ChatBubble(
                     }
 
                     if (message.isFromUser || message.isError) {
+                        // 👇 [THI] SỬA MÀU CHỮ CỦA ĐOẠN CHAT LỖI Ở ĐÂY 👇
                         Text(
                             text = message.text,
                             color = if (message.isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary,

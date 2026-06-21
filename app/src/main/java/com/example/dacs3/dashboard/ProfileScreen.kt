@@ -649,6 +649,7 @@ fun ProfileScreen(
 
         // --- LOGOUT BUTTON ---
         item {
+            // 👇 [THI] SỬA MÀU SẮC / CHỮ / NÚT ĐĂNG XUẤT Ở ĐÂY 👇
             OutlinedButton(
                 onClick = {
                     scope.launch {
