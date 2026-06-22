@@ -33,6 +33,7 @@ import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.tasks.await
+import com.google.android.gms.maps.model.MapStyleOptions
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -254,7 +255,41 @@ fun SeasonalStoresMapScreen(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
                 properties = MapProperties(
-                    isMyLocationEnabled = locationPermissionGranted
+                    isMyLocationEnabled = locationPermissionGranted,
+
+//                    mapStyleOptions = MapStyleOptions(
+//                        """
+//                        [
+//                          {
+//                            "elementType": "geometry",
+//                            "stylers": [{ "color": "#242f3e" }]
+//                          },
+//                          {
+//                            "elementType": "labels.text.fill",
+//                            "stylers": [{ "color": "#746855" }]
+//                          },
+//                          {
+//                            "elementType": "labels.text.stroke",
+//                            "stylers": [{ "color": "#242f3e" }]
+//                          },
+//                          {
+//                            "featureType": "administrative.locality",
+//                            "elementType": "labels.text.fill",
+//                            "stylers": [{ "color": "#d59563" }]
+//                          },
+//                          {
+//                            "featureType": "road",
+//                            "elementType": "geometry",
+//                            "stylers": [{ "color": "#38414e" }]
+//                          },
+//                          {
+//                            "featureType": "water",
+//                            "elementType": "geometry",
+//                            "stylers": [{ "color": "#17263c" }]
+//                          }
+//                        ]
+//                        """.trimIndent()
+//                    )
                 ),
                 uiSettings = MapUiSettings(
                     zoomControlsEnabled = false,
@@ -264,7 +299,7 @@ fun SeasonalStoresMapScreen(
             ) {
                 userLocation?.let { location ->
                     Marker(
-                        state = MarkerState(position = location),
+                        state = rememberMarkerState(position = location),
                         title = "Your Location",
                         snippet = "Finding stores within ${(radiusInMeters / 1000).toInt()} km"
                     )
@@ -272,7 +307,7 @@ fun SeasonalStoresMapScreen(
 
                 stores.forEach { store ->
                     Marker(
-                        state = MarkerState(
+                        state = rememberMarkerState(
                             position = LatLng(store.lat, store.lng)
                         ),
                         title = store.name,

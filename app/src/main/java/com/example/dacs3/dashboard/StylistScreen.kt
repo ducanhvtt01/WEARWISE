@@ -2199,7 +2199,7 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherContext: String, o
                             val ids = outfit.items.mapNotNull { it.id }
                             onWearClick(ids)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                         shape = RoundedCornerShape(28.dp),
                         modifier = Modifier
                             .height(56.dp)
@@ -2210,6 +2210,7 @@ fun OutfitCanvasSection(viewModel: DashboardViewModel, weatherContext: String, o
                             "WEAR IT",
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary
+
                         )
                     }
 

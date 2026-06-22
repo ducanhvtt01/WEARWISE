@@ -308,7 +308,7 @@ fun HomeUI(
                         CRITICAL INSTRUCTIONS FOR ACCURACY:
                         1. "name": Construct a descriptive, premium, and highly accurate name for the item (e.g. "Sleek Charcoal Crewneck Sweater", "Classic Olive Cargo Pants", "Minimalist White Leather Sneakers"). 
                            - WARNING: DO NOT hallucinate brand names (like "Uniqlo", "Zara", "Nike") unless a brand logo is clearly visible in the image. If no logo is visible, use a pure, premium descriptive fashion name.
-                        2. "category": You must choose strictly from these exact standard categories:
+                         2. "category": You must choose strictly from these exact standard categories:
                            - "Top" (for shirts, t-shirts, blouses, sweaters, hoodies)
                            - "Bottom" (for pants, jeans, shorts, skirts)
                            - "Shoes" (for sneakers, boots, formal shoes, sandals)

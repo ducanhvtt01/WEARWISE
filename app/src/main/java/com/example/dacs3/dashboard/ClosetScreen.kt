@@ -60,6 +60,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.os.Build
 import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1324,6 +1325,8 @@ fun ItemDetailSheetContent(
 
     val scrollState = rememberScrollState()
 
+
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1355,7 +1358,7 @@ fun ItemDetailSheetContent(
             onValueChange = { editName = it },
             label = { Text("Item Name") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1557,6 +1560,8 @@ fun AddManualSheetContent(
     var tempImageUri by remember { mutableStateOf<Uri?>(null) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
 
+    val isError = !editName.isEmpty()
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
@@ -1739,7 +1744,16 @@ fun AddManualSheetContent(
             onValueChange = { editName = it },
             label = { Text("Item Name") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            isError = isError,
+            supportingText = {
+                if (isError) {
+                    Text(
+                        text = "Vui lòng nhập tên",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1789,6 +1803,7 @@ fun AddManualSheetContent(
 
         // 👇 [THI] SỬA MÀU SẮC / CHỮ CỦA NÚT Ở ĐÂY 👇
         Button(
+
             onClick = {
                 val userId = supabase.auth.currentSessionOrNull()?.user?.id ?: ""
                 val newItem = ClothingItem(
@@ -1800,7 +1815,7 @@ fun AddManualSheetContent(
                     occasions = editOccasions.toList(),
                     imageUrl = "" // Image url will be updated after upload
                 )
-                onSave(newItem, selectedBitmap)
+                if (!editName.isEmpty()) onSave(newItem, selectedBitmap)
             },
             modifier = Modifier.fillMaxWidth().height(54.dp),
             shape = RoundedCornerShape(16.dp)
